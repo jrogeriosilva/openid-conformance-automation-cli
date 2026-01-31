@@ -4,6 +4,7 @@ import type { ExecutionSummary, ModuleResult, TestResult, TestState } from "./ty
 import { ConformanceApi } from "./conformanceApi";
 import { captureFromObject } from "./capture";
 import { ActionExecutor } from "./actions";
+import { navigateWithPlaywright } from "./playwrightRunner";
 import { sleep } from "../utils/sleep";
 
 export interface RunnerOptions {
@@ -98,6 +99,7 @@ export class Runner {
     const moduleName = moduleConfig.name;
     const captured: Record<string, string> = {};
     const executedActions = new Set<string>();
+    let executedWaitingNavigation = false;
 
     this.logger.log(`[${moduleName}]: Registrando...`);
     const moduleId = await this.api.registerModule(planId, moduleName);
@@ -105,6 +107,7 @@ export class Runner {
 
     const configuredOrTerminal = new Set<TestState>([
       "CONFIGURED",
+      "WAITING",
       "FINISHED",
       "INTERRUPTED",
     ]);
@@ -124,6 +127,10 @@ export class Runner {
       actions: moduleConfig.actions ?? [],
       actionExecutor,
       executedActions,
+      executedWaitingNavigation: () => executedWaitingNavigation,
+      markWaitingNavigationExecuted: () => {
+        executedWaitingNavigation = true;
+      },
     });
 
     const result: TestResult = this.toResult(terminalState.info.result ?? undefined);
@@ -156,7 +163,7 @@ export class Runner {
         return { state, info };
       }
 
-      this.logger.log(`[${moduleId}]: Polling... Estado: ${state} (Tentativa ${attempt})`);
+      this.logger.log(`[${moduleId}]: Polling... Estado: ${state}`);
       await sleep(this.pollInterval * 1000);
     }
 
@@ -171,6 +178,8 @@ export class Runner {
     actions,
     actionExecutor,
     executedActions,
+    executedWaitingNavigation,
+    markWaitingNavigationExecuted,
   }: {
     moduleId: string;
     moduleName: string;
@@ -179,6 +188,8 @@ export class Runner {
     actions: string[];
     actionExecutor: ActionExecutor;
     executedActions: Set<string>;
+    executedWaitingNavigation: () => boolean;
+    markWaitingNavigationExecuted: () => void;
   }): Promise<{ state: TestState; info: { status?: string; result?: string | null } } > {
     const start = Date.now();
     let attempt = 0;
@@ -189,7 +200,7 @@ export class Runner {
       captureFromObject(info, captureVars, captured);
       const state = ConformanceApi.toState(info.status);
 
-      this.logger.log(`[${moduleName}]: Polling... Estado: ${state} (Tentativa ${attempt})`);
+      this.logger.log(`[${moduleName}]: Polling... Estado: ${state}`);
 
       if (state === "WAITING" && actions.length > 0) {
         await this.tryExecuteActions({
@@ -201,6 +212,19 @@ export class Runner {
           captured,
           captureVars,
         });
+      }
+
+      if (state === "WAITING" && !executedWaitingNavigation()) {
+        this.logger.log(`[${moduleName}]: Executando navegacao aguardando...`);
+        const navigated = await this.tryExecuteWaitingNavigation({
+          moduleId,
+          moduleName,
+          captured,
+          captureVars,
+        });
+        if (navigated) {
+          markWaitingNavigationExecuted();
+        }
       }
 
       if (state === "FINISHED" || state === "INTERRUPTED") {
@@ -232,6 +256,7 @@ export class Runner {
   }): Promise<void> {
     const logs = await this.api.getModuleLogs(moduleId);
     captureFromObject(logs, captureVars, captured);
+    this.logger.log(`[${moduleName}]: Logs obtidos para execucao de acoes.`);
 
     for (const actionName of actions) {
       if (executedActions.has(actionName)) {
@@ -244,6 +269,47 @@ export class Runner {
       executedActions.add(actionName);
       this.logger.log(`[${moduleName}]: Action '${actionName}' concluida.`);
     }
+  }
+
+  private async tryExecuteWaitingNavigation({
+    moduleId,
+    moduleName,
+    captured,
+    captureVars,
+  }: {
+    moduleId: string;
+    moduleName: string;
+    captured: Record<string, string>;
+    captureVars: string[];
+  }): Promise<boolean> {
+    this.logger.log(`[${moduleName}]: Obtendo info do runner para navegacao...`);
+    const runnerInfo = await this.api.getRunnerInfo(moduleId);
+    captureFromObject(runnerInfo, captureVars, captured);
+
+    const browser = runnerInfo.browser;
+    const directUrl = browser?.urls?.[0];
+    const methodUrl = browser?.urlsWithMethod?.find((entry) => {
+      return !entry.method || entry.method.toUpperCase() === "GET";
+    })?.url;
+    const targetUrl = directUrl ?? methodUrl;
+
+    if (!targetUrl) {
+      const urls = browser?.urls?.length ? browser.urls.join(", ") : "(vazio)";
+      const urlsWithMethod = browser?.urlsWithMethod?.length
+        ? browser.urlsWithMethod
+            .map((entry) => `${entry.method ?? "GET"} ${entry.url}`)
+            .join(", ")
+        : "(vazio)";
+      this.logger.log(
+        `[${moduleName}]: Nenhuma URL de navegador encontrada. urls=${urls} urlsWithMethod=${urlsWithMethod}`
+      );
+      return false;
+    }
+
+    this.logger.log(`[${moduleName}]: Navegando para URL de browser: ${targetUrl}`);
+    const finalUrl = await navigateWithPlaywright(targetUrl, this.headless);
+    this.logger.log(`[${moduleName}]: Navegacao concluida para URL de browser: ${finalUrl}`);
+    return true;
   }
 
   private toResult(result?: string | null): TestResult {

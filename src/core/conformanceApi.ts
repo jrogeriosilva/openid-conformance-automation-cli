@@ -16,6 +16,25 @@ const moduleInfoSchema = z.object({
   expose: z.array(z.record(z.unknown())).optional(),
 });
 
+const runnerInfoSchema = z.object({
+  id: z.string().optional(),
+  status: z.string().optional(),
+  result: z.string().optional().nullable(),
+  browser: z
+    .object({
+      urls: z.array(z.string()).optional(),
+      urlsWithMethod: z
+        .array(
+          z.object({
+            url: z.string().min(1),
+            method: z.string().min(1).optional(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
+});
+
 const registerResponseSchema = z.object({
   id: z.string().min(1),
 });
@@ -60,6 +79,20 @@ export class ConformanceApi {
       200
     );
     return moduleInfoSchema.parse(response);
+  }
+
+  async getRunnerInfo(moduleId: string): Promise<z.infer<typeof runnerInfoSchema>> {
+    const url = this.client.buildUrl(`api/runner/${moduleId}`);
+    const response = await this.client.requestJson<unknown>(
+      url,
+      {
+        method: "GET",
+        headers: this.client.getAuthHeaders(),
+      },
+      200
+    );
+
+    return runnerInfoSchema.parse(response);
   }
 
   async getModuleLogs(moduleId: string): Promise<unknown[]> {
