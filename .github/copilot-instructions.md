@@ -12,8 +12,7 @@ This project is a TypeScript-based CLI tool that automates interaction with an O
 - Variable capture is central: `captureFromObject()` crawls API responses/logs and URLs to extract `capture_vars` into a shared map (see [src/core/capture.ts](src/core/capture.ts)).
 - Templating uses `{{var}}` placeholders across strings, objects, arrays (see [src/core/template.ts](src/core/template.ts)).
 - `ConformanceApi` is the only place that talks to the OpenID conformance server APIs (see [src/core/conformanceApi.ts](src/core/conformanceApi.ts)).
-- Playwright is only used to simulate browser navigation requested by conformance tool and callbacks (redirect back after approve or reject consent)
-[src/core/playwrightRunner.ts](src/core/playwrightRunner.ts)).
+- Playwright is only used to simulate browser navigation requested by the conformance tool and callbacks (redirect back after approve or reject consent) (see [src/core/playwrightRunner.ts](src/core/playwrightRunner.ts)).
 
 - All the redirects made by Playwright or Actions (API Calls) must capture vars from config (query params and response) and update the shared `capture_vars` map.
 
@@ -23,11 +22,11 @@ This project is a TypeScript-based CLI tool that automates interaction with an O
 - Action payload/headers are templated before request;
 
 ## Developer workflows
+- Setup (run once per clone): `npm install` and `npx playwright install --with-deps` before running the commands below.
 - Build: `npm run build` (tsc output to dist/).
 - Dev run: `npm run dev -- --config ./config.json --plan-id <PLAN_ID> --token <TOKEN>`.
 - Runtime entry: `node dist/index.js` or `npm start`.
 - Tests: `npm test` (Jest with ts-jest; test files `**/*.spec.ts` or `**/*.test.ts`).
-- Playwright browsers must be installed once: `npx playwright install --with-deps`.
 
 ## Project-specific conventions
 - Logging is intentionally plain and in English (see [src/core/logger.ts](src/core/logger.ts)); keep style consistent.
@@ -47,3 +46,4 @@ This project is a TypeScript-based CLI tool that automates interaction with an O
 - Auth is always Bearer token from CLI flag or `CONFORMANCE_TOKEN`. Use if present.
 - Playwright browser automation for handling redirects and consent pages.
 - Polling intervals and timeouts are CLI-configurable; default values are in [src/cli.ts](src/cli.ts).
+- Any new `ConformanceApi` endpoint should go through the shared [HttpClient](src/core/httpClient.ts) and invoke [captureFromObject](src/core/capture.ts) so templated capture variables stay up to date.
