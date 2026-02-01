@@ -98,7 +98,10 @@ export class Runner {
     let isExecutedNavigation = false;
 
     this.logger.log(`[${moduleName}]: Registering...`);
-    const runnerId = await this.api.registerRunner(planId, moduleName);
+    const runnerId = await this.api.registerRunner(planId, moduleName, {
+      captureVars,
+      store: captured,
+    });
     this.logger.log(`[${moduleName}]: Registering... OK (ID: ${runnerId})`);
     
     const terminalState = await this.pollUntilTerminalState({
@@ -150,7 +153,10 @@ export class Runner {
     const start = Date.now();
 
     while (Date.now() - start < this.timeout * 1000) {
-      const info = await this.api.getModuleInfo(runnerId);
+      const info = await this.api.getModuleInfo(runnerId, {
+        captureVars,
+        store: captured,
+      });
       captureFromObject(info, captureVars, captured);
       const state = ConformanceApi.toState(info.status);
 
@@ -159,7 +165,10 @@ export class Runner {
       // Navigate if in WAITING state and navigation not yet executed
       if (state === "WAITING" && !isNavigationExecuted()) {
         this.logger.log(`[${moduleName}]: Fetching runner information...`);
-        const runnerInfo = await this.api.getRunnerInfo(runnerId);
+        const runnerInfo = await this.api.getRunnerInfo(runnerId, {
+          captureVars,
+          store: captured,
+        });
 
         this.logger.log(`[${moduleName}]: Running navigation...`);
         const navigated = await this.navigateToUrl({
@@ -189,7 +198,11 @@ export class Runner {
       // TODO: Playwright: Redirect the browser to callback url returned by the navigation step
       if (state === "WAITING" && captured[CONSTANTS.CALLBACK_VARIABLE_NAME]) {
         this.logger.log(`[${moduleName}]: Redirecting to callback URL: ${captured[CONSTANTS.CALLBACK_VARIABLE_NAME]}`);
-        await navigateWithPlaywright(captured[CONSTANTS.CALLBACK_VARIABLE_NAME], this.headless);
+        const finalUrl = await navigateWithPlaywright(
+          captured[CONSTANTS.CALLBACK_VARIABLE_NAME],
+          this.headless
+        );
+        captureFromObject(finalUrl, captureVars, captured);
       }
 
       if (state === "FINISHED" || state === "INTERRUPTED") {
@@ -219,7 +232,10 @@ export class Runner {
     captured: Record<string, string>;
     captureVars: string[];
   }): Promise<void> {
-    const logs = await this.api.getModuleLogs(runnerId);
+    const logs = await this.api.getModuleLogs(runnerId, {
+      captureVars,
+      store: captured,
+    });
     captureFromObject(logs, captureVars, captured);
     this.logger.log(`[${moduleName}]: Logs retrieved for action execution.`);
 
@@ -270,7 +286,9 @@ export class Runner {
     }
 
     this.logger.log(`[${moduleName}]: Navigating to URL: ${targetUrl}`);
+    captureFromObject(targetUrl, captureVars, captured);
     const finalUrl = await navigateWithPlaywright(targetUrl, this.headless);
+    captureFromObject(finalUrl, captureVars, captured);
     this.logger.log(`[${moduleName}]: Navigation completed for URL: ${finalUrl}`);
     return true;
   }

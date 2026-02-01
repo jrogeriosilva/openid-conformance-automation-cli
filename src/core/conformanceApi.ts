@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { HttpClient } from "./httpClient";
+import { HttpClient, type CaptureContext } from "./httpClient";
 import type { TestState } from "./types";
 
 export interface ConformanceApiOptions {
@@ -49,7 +49,11 @@ export class ConformanceApi {
     });
   }
 
-  async registerRunner(planId: string, testName: string): Promise<string> {
+  async registerRunner(
+    planId: string,
+    testName: string,
+    capture?: CaptureContext
+  ): Promise<string> {
     const endpoint = this.client.buildUrl("api/runner");
     const url = new URL(endpoint);
     url.searchParams.set("test", testName);
@@ -61,14 +65,18 @@ export class ConformanceApi {
         method: "POST",
         headers: this.client.getAuthHeaders(),
       },
-      [200, 201]
+      [200, 201],
+      { capture }
     );
 
     const parsed = registerResponseSchema.parse(response);
     return parsed.id;
   }
 
-  async getModuleInfo(runnerId: string): Promise<z.infer<typeof moduleInfoSchema>> {
+  async getModuleInfo(
+    runnerId: string,
+    capture?: CaptureContext
+  ): Promise<z.infer<typeof moduleInfoSchema>> {
     const url = this.client.buildUrl(`api/info/${runnerId}`);
     const response = await this.client.requestJson<unknown>(
       url,
@@ -76,12 +84,16 @@ export class ConformanceApi {
         method: "GET",
         headers: this.client.getAuthHeaders(),
       },
-      200
+      200,
+      { capture }
     );
     return moduleInfoSchema.parse(response);
   }
 
-  async getRunnerInfo(runnerId: string): Promise<z.infer<typeof runnerInfoSchema>> {
+  async getRunnerInfo(
+    runnerId: string,
+    capture?: CaptureContext
+  ): Promise<z.infer<typeof runnerInfoSchema>> {
     const url = this.client.buildUrl(`api/runner/${runnerId}`);
     const response = await this.client.requestJson<unknown>(
       url,
@@ -89,13 +101,14 @@ export class ConformanceApi {
         method: "GET",
         headers: this.client.getAuthHeaders(),
       },
-      200
+      200,
+      { capture }
     );
 
     return runnerInfoSchema.parse(response);
   }
 
-  async getModuleLogs(runnerId: string): Promise<unknown[]> {
+  async getModuleLogs(runnerId: string, capture?: CaptureContext): Promise<unknown[]> {
     const url = this.client.buildUrl(`api/log/${runnerId}`);
     const response = await this.client.requestJson<unknown>(
       url,
@@ -103,7 +116,8 @@ export class ConformanceApi {
         method: "GET",
         headers: this.client.getAuthHeaders(),
       },
-      200
+      200,
+      { capture }
     );
 
     if (Array.isArray(response)) {
@@ -112,7 +126,7 @@ export class ConformanceApi {
     return [];
   }
 
-  async startModule(runnerId: string): Promise<void> {
+  async startModule(runnerId: string, capture?: CaptureContext): Promise<void> {
     const url = this.client.buildUrl(`api/runner/${runnerId}`);
     await this.client.requestJson<unknown>(
       url,
@@ -120,7 +134,8 @@ export class ConformanceApi {
         method: "POST",
         headers: this.client.getAuthHeaders(),
       },
-      [200, 201]
+      [200, 201],
+      { capture }
     );
   }
 

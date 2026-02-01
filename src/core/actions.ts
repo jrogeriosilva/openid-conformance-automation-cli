@@ -1,6 +1,7 @@
 import type { ActionConfig } from "../config/schema";
 import { applyTemplate } from "./template";
 import { captureFromObject } from "./capture";
+import { HttpClient } from "./httpClient";
 import { navigateWithPlaywright } from "./playwrightRunner";
 
 export interface ActionExecutorOptions {
@@ -12,11 +13,13 @@ export class ActionExecutor {
   private readonly actions: Map<string, ActionConfig>;
   private readonly captureVars: string[];
   private readonly headless: boolean;
+  private readonly client: HttpClient;
 
   constructor(actions: ActionConfig[], options: ActionExecutorOptions) {
     this.actions = new Map(actions.map((action) => [action.name, action]));
     this.captureVars = options.captureVars;
     this.headless = options.headless;
+    this.client = new HttpClient({});
   }
 
   getAction(name: string): ActionConfig | undefined {
@@ -40,31 +43,23 @@ export class ActionExecutor {
       ? (applyTemplate(action.headers, variables) as Record<string, string>)
       : undefined;
 
-    const response = await fetch(endpoint, {
-      method: action.method,
-      headers: {
-        "Content-Type": "application/json",
-        ...headers,
-      },
-      body: payload ? JSON.stringify(payload) : undefined,
-    });
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Action '${name}' failed: HTTP ${response.status}: ${body}`);
-    }
-
-    const responseText = await response.text();
-    let responseJson: unknown = {};
-    if (responseText) {
-      try {
-        responseJson = JSON.parse(responseText);
-      } catch {
-        responseJson = {};
-      }
-    }
     const captured: Record<string, string> = {};
-    captureFromObject(responseJson, this.captureVars, captured);
+    await this.client.requestJson<unknown>(
+      endpoint,
+      {
+        method: action.method,
+        headers: this.client.getAuthHeaders(headers),
+        body: payload ? JSON.stringify(payload) : undefined,
+      },
+      "ok",
+      {
+        capture: {
+          captureVars: this.captureVars,
+          store: captured,
+        },
+        allowNonJson: true,
+      }
+    );
 
     const callbackUrl = action.callback_to
       ? (applyTemplate(action.callback_to, variables) as string)
