@@ -32,6 +32,8 @@ export class Runner {
       passed: 0,
       failed: 0,
       warning: 0,
+      review: 0,
+      unknown: 0,
       skipped: 0,
       interrupted: 0,
       modules: [],
@@ -64,6 +66,12 @@ export class Runner {
           break;
         case "WARNING":
           summary.warning += 1;
+          break;
+        case "REVIEW":
+          summary.review += 1;
+          break;
+        case "UNKNOWN":
+          summary.unknown += 1;
           break;
         case "SKIPPED":
           summary.skipped += 1;

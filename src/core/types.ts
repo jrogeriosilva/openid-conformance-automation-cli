@@ -32,6 +32,8 @@ export interface ExecutionSummary {
   passed: number;
   failed: number;
   warning: number;
+  review: number;
+  unknown: number;
   skipped: number;
   interrupted: number;
   modules: ModuleResult[];

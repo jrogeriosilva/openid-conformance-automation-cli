@@ -48,6 +48,8 @@ describe("createLogger", () => {
       passed: 2,
       failed: 1,
       warning: 0,
+      review: 0,
+      unknown: 0,
       skipped: 0,
       interrupted: 0,
       modules: [],
@@ -74,6 +76,8 @@ describe("createLogger", () => {
       passed: 3,
       failed: 1,
       warning: 2,
+      review: 1,
+      unknown: 1,
       skipped: 1,
       interrupted: 1,
       modules: [],
@@ -87,8 +91,10 @@ describe("createLogger", () => {
     expect(logSpy).toHaveBeenNthCalledWith(4, "PASS: 3");
     expect(logSpy).toHaveBeenNthCalledWith(5, "FAIL: 1");
     expect(logSpy).toHaveBeenNthCalledWith(6, "WARNING: 2");
-    expect(logSpy).toHaveBeenNthCalledWith(7, "SKIPPED/INTERRUPTED: 2");
-    expect(logSpy).toHaveBeenNthCalledWith(8, "----------------------------------------");
-    expect(logSpy).toHaveBeenCalledTimes(8);
+    expect(logSpy).toHaveBeenNthCalledWith(7, "REVIEW: 1");
+    expect(logSpy).toHaveBeenNthCalledWith(8, "UNKNOWN: 1");
+    expect(logSpy).toHaveBeenNthCalledWith(9, "SKIPPED/INTERRUPTED: 2");
+    expect(logSpy).toHaveBeenNthCalledWith(10, "----------------------------------------");
+    expect(logSpy).toHaveBeenCalledTimes(10);
   });
 });

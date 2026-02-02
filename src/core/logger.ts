@@ -20,6 +20,12 @@ export const createLogger = (): Logger => ({
     if (summary.warning > 0) {
       console.log(`WARNING: ${summary.warning}`);
     }
+    if (summary.review > 0) {
+      console.log(`REVIEW: ${summary.review}`);
+    }
+    if (summary.unknown > 0) {
+      console.log(`UNKNOWN: ${summary.unknown}`);
+    }
     console.log(`SKIPPED/INTERRUPTED: ${summary.skipped + summary.interrupted}`);
     console.log("-".repeat(40));
   },

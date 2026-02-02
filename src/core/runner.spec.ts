@@ -89,6 +89,38 @@ describe("Runner", () => {
     expect(summary.modules[1].runnerId).toBe("r2");
   });
 
+  test("executePlan aggregates review and unknown results", async () => {
+    const { Runner, mocks } = setupRunner();
+
+    mocks.ActionExecutor.mockImplementation(() => ({ executeAction: jest.fn() }));
+
+    const api = {
+      registerRunner: jest
+        .fn()
+        .mockResolvedValueOnce("r1")
+        .mockResolvedValueOnce("r2"),
+      getModuleInfo: jest.fn(async (runnerId: string) => {
+        if (runnerId === "r1") {
+          return { status: "FINISHED", result: "REVIEW" };
+        }
+        return { status: "FINISHED", result: "UNKNOWN" };
+      }),
+      getRunnerInfo: jest.fn(),
+      getModuleLogs: jest.fn(),
+    };
+
+    const { runner } = createRunner(Runner, api);
+
+    const config = createConfig({
+      modules: [{ name: "module-1" }, { name: "module-2" }],
+    });
+
+    const summary = await runner.executePlan({ planId: "p1", config });
+
+    expect(summary.review).toBe(1);
+    expect(summary.unknown).toBe(1);
+  });
+
   test("executes navigation, actions, and callback redirect once", async () => {
     const { Runner, mocks } = setupRunner();
 
