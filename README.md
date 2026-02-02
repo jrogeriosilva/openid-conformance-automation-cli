@@ -1,4 +1,9 @@
-# openid-conformance-automation-cli
+# OpenID Conformance Automation CLI
+
+[<img src="https://badges.ws/badge/Version-0.1.0-red" />](https://github.com/jrogeriosilva/openid-conformance-automation-cli)
+[<img src="https://badges.ws/badge/Status-Beta-green" />](https://github.com/jrogeriosilva/openid-conformance-automation-cli)
+
+<img width="540" height="196" alt="image" src="https://github.com/user-attachments/assets/98921412-d18f-4813-968b-58b0a48981ec" />
 
 CLI tool to automate OpenID Connect Conformance Suite tests using a JSON configuration with dynamic actions and variable capture.
 
