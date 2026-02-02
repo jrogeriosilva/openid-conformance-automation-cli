@@ -1,4 +1,4 @@
-# auto-conformance-cli
+# openid-conformance-automation-cli
 
 CLI tool to automate OpenID Connect Conformance Suite tests using a JSON configuration with dynamic actions and variable capture.
 
