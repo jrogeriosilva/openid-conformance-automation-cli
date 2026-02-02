@@ -38,7 +38,6 @@ The CLI expects a JSON file with this shape:
       "method": "POST",
       "payload": { "session_id": "{{session_id}}" },
       "headers": { "Authorization": "Bearer {{access_token}}" },
-      "callback_to": "{{redirect_to}}"
     }
   ],
   "modules": [
