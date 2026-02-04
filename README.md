@@ -218,41 +218,22 @@ Create a `.env` file in the project root (see `env.example`):
 
 The CLI follows this execution flow for each test module:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Test Execution Flow                        │
-└─────────────────────────────────────────────────────────────────┘
-
-1. Register Module
-   POST /api/runner?test={module_name}&plan={plan_id}
-   └── Returns: runner_id
-              │
-              ▼
-2. Poll for CONFIGURED State
-   GET /api/info/{runner_id}
-   └── Repeat every {poll_interval} seconds
-              │
-              ▼
-3. Start Test
-   POST /api/runner/{runner_id}
-              │
-              ▼
-4. Poll Until Terminal State
-   GET /api/info/{runner_id}
-              │
-   ┌──────────┴──────────┐
-   │                     │
-   ▼                     ▼
-WAITING              FINISHED/INTERRUPTED
-   │                     │
-   ▼                     ▼
-Execute Actions      Return Result
-   │
-   ├── Navigate browser to test URL
-   ├── Execute configured HTTP actions
-   └── Capture variables from responses
-              │
-              └──────► Continue polling
+```mermaid
+flowchart TD
+    A[1. Register Module] -->|POST /api/runner?test=module&plan=id| B[Returns: runner_id]
+    B --> C[2. Poll for CONFIGURED State]
+    C -->|GET /api/info/runner_id| D{CONFIGURED?}
+    D -->|No| C
+    D -->|Yes| E[3. Start Test]
+    E -->|POST /api/runner/runner_id| F[4. Poll Until Terminal State]
+    F -->|GET /api/info/runner_id| G{Check State}
+    G -->|WAITING| H[Execute Actions]
+    G -->|FINISHED / INTERRUPTED| I[Return Result]
+    H --> J[Navigate browser to test URL]
+    J --> K[Execute configured HTTP actions]
+    K --> L[Capture variables from responses]
+    L --> F
+    I --> M((End))
 ```
 
 **State Definitions:**
