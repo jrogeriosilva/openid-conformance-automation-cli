@@ -315,6 +315,7 @@ npx playwright install --with-deps
 
 Run with visible browser to debug automation issues:
 
+**Browser fails to launch**
 ```bash
 node dist/index.js --config ./config.json --plan-id <ID> --no-headless
 ```
