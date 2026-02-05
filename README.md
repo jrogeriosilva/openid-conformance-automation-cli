@@ -91,6 +91,7 @@ cp env.example .env
   "actions": [
     {
       "name": "approve_consent",
+      "type": "api",
       "endpoint": "https://your-bank-api.com/consent/{{consent_id}}/approve",
       "method": "POST"
     }
@@ -122,11 +123,11 @@ The CLI expects a JSON configuration file with the following structure:
   "actions": [
     {
       "name": "action_name",
+      "type": "api",
       "endpoint": "https://api.example.com/{{var1}}/path",
       "method": "POST",
       "payload": { "key": "{{var2}}" },
-      "headers": { "Authorization": "Bearer {{token}}" },
-      "callback_to": "https://callback.url/path"
+      "headers": { "Authorization": "Bearer {{token}}" }
     }
   ],
   "modules": [
@@ -390,7 +391,7 @@ npx playwright install --with-deps
 
 Run with visible browser to debug automation issues:
 
-**Browser fails to launch**
+**Visible browser debugging**
 ```bash
 node dist/index.js --config ./config.json --plan-id <ID> --no-headless
 ```
