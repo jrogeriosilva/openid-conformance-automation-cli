@@ -77,6 +77,34 @@ export class Runner {
     return summary;
   }
 
+  /**
+   * Executes a single test module within a conformance test plan.
+   *
+   * This method handles the complete lifecycle of a test module execution:
+   * 1. Registers the module with the conformance API
+   * 2. Polls the module status until it reaches a terminal state
+   * 3. Handles browser navigation when the module enters WAITING state
+   * 4. Executes configured HTTP actions when needed
+   * 5. Captures variables from responses throughout execution
+   *
+   * @param params - Execution parameters
+   * @param params.planId - The ID of the test plan this module belongs to
+   * @param params.moduleConfig - Configuration for the module including name and actions
+   * @param params.actionExecutor - Executor for handling HTTP actions defined in the config
+   * @param params.captureVars - Array of variable names to capture from API responses
+   *
+   * @returns A promise that resolves to the module execution result, including:
+   *   - name: Module identifier
+   *   - runnerId: Unique ID assigned by the conformance API
+   *   - state: Final test state (FINISHED, INTERRUPTED, etc.)
+   *   - result: Test outcome (PASSED, FAILED, WARNING, SKIPPED, etc.)
+   *   - captured: Map of all variables captured during execution
+   *
+   * @throws {Error} If module registration fails or polling times out
+   *
+   * @private
+   * @async
+   */
   private async executeModule({
     planId,
     moduleConfig,
