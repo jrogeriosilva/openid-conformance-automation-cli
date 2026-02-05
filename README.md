@@ -1,13 +1,13 @@
-# OpenID Conformance Automation CLI
+# oidc-autopilot
 
-[![Version](https://badges.ws/badge/Version-0.1.0-blue)](https://github.com/jrogeriosilva/openid-conformance-automation-cli)
-[![Status](https://badges.ws/badge/Status-Beta-green)](https://github.com/jrogeriosilva/openid-conformance-automation-cli)
+[![Version](https://badges.ws/badge/Version-0.1.0-blue)](https://github.com/jrogeriosilva/oidc-autopilot)
+[![Status](https://badges.ws/badge/Status-Beta-green)](https://github.com/jrogeriosilva/oidc-autopilot)
 [![License](https://badges.ws/badge/License-MIT-yellow)](./LICENSE)
 [![Node.js](https://badges.ws/badge/Node.js-18+-339933)](https://nodejs.org/)
 
-<img width="540" height="196" alt="OpenID Conformance Automation CLI" src="https://github.com/user-attachments/assets/98921412-d18f-4813-968b-58b0a48981ec" />
+<img width="540" height="196" alt="oidc-autopilot" src="https://github.com/user-attachments/assets/98921412-d18f-4813-968b-58b0a48981ec" />
 
-A powerful CLI tool that automates [OpenID Connect Conformance Suite](https://www.certification.openid.net) tests using JSON configuration with dynamic actions and variable capture. Designed to streamline certification testing workflows for OpenID Connect implementations.
+**oidc-autopilot** automates [OpenID Connect Conformance Suite](https://www.certification.openid.net) tests using JSON configuration with dynamic actions and variable capture. Designed to streamline certification testing workflows for OpenID Connect implementations.
 
 ## Table of Contents
 
@@ -52,8 +52,8 @@ A powerful CLI tool that automates [OpenID Connect Conformance Suite](https://ww
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/jrogeriosilva/openid-conformance-automation-cli.git
-cd openid-conformance-automation-cli
+git clone https://github.com/jrogeriosilva/oidc-autopilot.git
+cd oidc-autopilot
 ```
 
 2. Install dependencies:

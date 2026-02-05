@@ -15,6 +15,7 @@ describe("runnerHelpers", () => {
       info: jest.fn(),
       log: jest.fn(),
       error: jest.fn(),
+      debug: jest.fn(),
       summary: jest.fn(),
     };
 

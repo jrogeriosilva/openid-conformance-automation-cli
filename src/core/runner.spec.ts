@@ -34,7 +34,13 @@ describe("Runner", () => {
   };
 
   const createRunner = (Runner: any, api: unknown) => {
-    const logger = { log: jest.fn() };
+    const logger = {
+      log: jest.fn(),
+      info: jest.fn(),
+      error: jest.fn(),
+      debug: jest.fn(),
+      summary: jest.fn(),
+    };
     const runner = new Runner({
       api,
       pollInterval: 0,
@@ -129,7 +135,11 @@ describe("Runner", () => {
 
     expect(api.getRunnerInfo).toHaveBeenCalledTimes(1);
     expect(executeAction).toHaveBeenCalledTimes(1);
-    expect(executeAction).toHaveBeenCalledWith("act1", expect.any(Object), {});
+    expect(executeAction).toHaveBeenCalledWith("act1", expect.any(Object), {}, expect.objectContaining({
+      correlationId: expect.any(String),
+      moduleName: "module-1",
+      actionName: "act1",
+    }));
     expect(mocks.browserNavigate).toHaveBeenCalledTimes(1);
     expect(mocks.browserNavigate).toHaveBeenCalledWith("http://start");
     expect(mocks.sleep).toHaveBeenCalledTimes(1);

@@ -8,6 +8,9 @@ jest.mock("./config/loadConfig");
 jest.mock("./core/conformanceApi");
 jest.mock("./core/runner");
 jest.mock("./core/logger");
+jest.mock("dotenv", () => ({
+  config: jest.fn(),
+}));
 
 const mockedLoadConfig = jest.mocked(loadConfig);
 const MockedConformanceApi = jest.mocked(ConformanceApi);

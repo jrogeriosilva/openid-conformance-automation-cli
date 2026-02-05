@@ -15,6 +15,13 @@ export interface RunnerContext {
   browserSession: BrowserSession;
 }
 
+/**
+ * @deprecated Use StateManager class instead. This function is kept for backward compatibility
+ * and will be removed in Phase 2 of the refactoring plan.
+ *
+ * Please migrate to StateManager for better separation of concerns and maintainability.
+ * See src/core/stateManager.ts for the new implementation.
+ */
 export const pollRunnerStatus = async ({
   context,
   runnerId,

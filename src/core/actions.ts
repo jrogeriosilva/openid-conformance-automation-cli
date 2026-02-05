@@ -7,6 +7,8 @@ import { applyTemplate } from "./template";
 import { captureFromObject } from "./capture";
 import { HttpClient } from "./httpClient";
 import { BrowserSession } from "./browserSession";
+import { ActionExecutionError } from "./errors";
+import type { LogContext } from "./logger";
 
 export interface ActionExecutorOptions {
   captureVars: string[];
@@ -51,22 +53,43 @@ export class ActionExecutor {
   async executeAction(
     name: string,
     capturedVariables: Record<string, string>,
-    moduleVariables: Record<string, string>
+    moduleVariables: Record<string, string>,
+    logContext?: LogContext
   ): Promise<Record<string, string>> {
     const action = this.actions.get(name);
     if (!action) {
-      throw new Error(`Action '${name}' not found in config`);
+      throw new ActionExecutionError(
+        name,
+        'UNKNOWN',
+        `Action '${name}' not found in config`
+      );
     }
 
-    const variables = this.mergeVariables(capturedVariables, moduleVariables);
+    try {
+      const variables = this.mergeVariables(capturedVariables, moduleVariables);
 
-    if (action.type === "api") {
-      return this.executeApiAction(action, variables);
-    } else if (action.type === "browser") {
-      return this.executeBrowserAction(action, variables);
-    } else {
-      const exhaustive: never = action;
-      throw new Error(`Unknown action type: ${exhaustive}`);
+      if (action.type === "api") {
+        return await this.executeApiAction(action, variables);
+      } else if (action.type === "browser") {
+        return await this.executeBrowserAction(action, variables);
+      } else {
+        const exhaustive: never = action;
+        throw new Error(`Unknown action type: ${exhaustive}`);
+      }
+    } catch (err) {
+      // If it's already an ActionExecutionError, re-throw it
+      if (err instanceof ActionExecutionError) {
+        throw err;
+      }
+
+      // Otherwise, wrap it
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      throw new ActionExecutionError(
+        name,
+        action.type,
+        `Action execution failed: ${errorMessage}`,
+        err instanceof Error ? err : undefined
+      );
     }
   }
 

@@ -3,7 +3,9 @@ import type { Logger } from "./logger";
 import type { ExecutionSummary, ModuleResult, RunnerOptions } from "./types";
 import { ActionExecutor } from "./actions";
 import { BrowserSession } from "./browserSession";
-import { pollRunnerStatus } from "./runnerHelpers";
+import { StateManager } from "./stateManager";
+import { ModuleExecutionError, StateTimeoutError, ActionExecutionError } from "./errors";
+import { captureFromObject } from "./capture";
 
 export class Runner {
   private readonly api: RunnerOptions["api"];
@@ -118,8 +120,9 @@ export class Runner {
     const moduleName = moduleConfig.name;
     const moduleVariables = moduleConfig.variables ?? {};
     const captured: Record<string, string> = {};
-    const executedActions = new Set<string>();
-    let isExecutedNavigation = false;
+
+    // Generate correlation ID for tracing
+    const correlationId = `${moduleName}-${Date.now()}`;
 
     // Create browser session per module
     const browserSession = new BrowserSession(this.headless);
@@ -133,34 +136,100 @@ export class Runner {
         browserSession,
       });
 
-      this.logger.log(`[${moduleName}]: Registering...`);
+      this.logger.log('Registering...', {
+        correlationId,
+        moduleName,
+      });
+
       const runnerId = await this.api.registerRunner(planId, moduleName, {
         captureVars,
         store: captured,
       });
-      this.logger.log(`[${moduleName}]: Registering... OK (ID: ${runnerId})`);
 
-      const terminalState = await pollRunnerStatus({
-        context: {
-          api: this.api,
-          pollInterval: this.pollInterval,
-          timeout: this.timeout,
-          headless: this.headless,
-          logger: this.logger,
-          browserSession,
-        },
-        runnerId,
+      this.logger.log(`Registering... OK (ID: ${runnerId})`, {
+        correlationId,
         moduleName,
+      });
+
+      // Create state manager
+      const stateManager = new StateManager(
+        this.api,
+        this.pollInterval,
+        this.timeout,
+        this.logger
+      );
+
+      // Poll until terminal state
+      const terminalState = await stateManager.pollUntilTerminal(
+        runnerId,
         captureVars,
         captured,
-        actions: moduleConfig.actions ?? [],
-        moduleVariables,
-        actionExecutor,
-        executedActions,
-        isNavigationExecuted: () => isExecutedNavigation,
-        markNavigationExecuted: () => {
-          isExecutedNavigation = true;
+        {
+          onNavigate: async (runnerInfo) => {
+            const url = this.getBrowserUrl(runnerInfo, moduleName, correlationId);
+            if (url) {
+              this.logger.log(`Navigating to URL: ${url}`, {
+                correlationId,
+                moduleName,
+              });
+              captureFromObject(url, captureVars, captured);
+              const finalUrl = await browserSession.navigate(url);
+              captureFromObject(finalUrl, captureVars, captured);
+              this.logger.log(`Navigation completed for URL: ${finalUrl}`, {
+                correlationId,
+                moduleName,
+              });
+              return true;
+            }
+            return false;
+          },
+          onExecuteActions: async (executedActions) => {
+            // Get logs for action execution
+            const logs = await this.api.getModuleLogs(runnerId, {
+              captureVars,
+              store: captured,
+            });
+            captureFromObject(logs, captureVars, captured);
+            this.logger.debug('Logs retrieved for action execution.', {
+              correlationId,
+              moduleName,
+            });
+
+            // Execute each action once
+            for (const actionName of moduleConfig.actions ?? []) {
+              if (!executedActions.has(actionName)) {
+                this.logger.log(`Executing action '${actionName}'...`, {
+                  correlationId,
+                  moduleName,
+                  actionName,
+                });
+
+                const newlyCaptured = await actionExecutor.executeAction(
+                  actionName,
+                  captured,
+                  moduleVariables,
+                  { correlationId, moduleName, actionName }
+                );
+
+                Object.assign(captured, newlyCaptured);
+                executedActions.add(actionName);
+
+                this.logger.log(`Action '${actionName}' completed.`, {
+                  correlationId,
+                  moduleName,
+                  actionName,
+                });
+              }
+            }
+          },
         },
+        { correlationId, moduleName }
+      );
+
+      this.logger.log('Module execution completed', {
+        correlationId,
+        moduleName,
+        state: terminalState.state,
       });
 
       return {
@@ -170,10 +239,72 @@ export class Runner {
         result: terminalState.info.result,
         captured,
       };
+    } catch (err) {
+      // Log specific error types with context
+      if (err instanceof StateTimeoutError) {
+        this.logger.error(`Timeout in state ${err.lastState}`, {
+          correlationId,
+          moduleName,
+          state: err.lastState,
+        });
+      } else if (err instanceof ActionExecutionError) {
+        this.logger.error(`Action ${err.actionName} failed: ${err.message}`, {
+          correlationId,
+          moduleName,
+          actionName: err.actionName,
+        });
+      } else if (err instanceof Error) {
+        this.logger.error(err.message, {
+          correlationId,
+          moduleName,
+        });
+      }
+
+      // Wrap in ModuleExecutionError
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      throw new ModuleExecutionError(
+        moduleName,
+        'UNKNOWN',
+        `Module execution failed: ${errorMessage}`,
+        err instanceof Error ? err : undefined
+      );
     } finally {
       // Cleanup browser session
       await browserSession.close();
     }
+  }
+
+  /**
+   * Extracts the browser URL from runnerInfo for navigation.
+   * Prefers direct URL, falls back to first GET method URL.
+   */
+  private getBrowserUrl(
+    runnerInfo: any,
+    moduleName: string,
+    correlationId: string
+  ): string | null {
+    const browser = runnerInfo.browser;
+    const directUrl = browser.urls[0];
+    const methodUrl = browser.urlsWithMethod.find((entry: any) => {
+      return entry.method.toUpperCase() === "GET";
+    })?.url;
+    const targetUrl = directUrl ?? methodUrl;
+
+    if (!targetUrl) {
+      const urls = browser.urls.length ? browser.urls.join(", ") : "(empty)";
+      const urlsWithMethod = browser.urlsWithMethod.length
+        ? browser.urlsWithMethod
+            .map((entry: any) => `${entry.method} ${entry.url}`)
+            .join(", ")
+        : "(empty)";
+      this.logger.log(
+        `No browser URL found. urls=${urls} urlsWithMethod=${urlsWithMethod}`,
+        { correlationId, moduleName }
+      );
+      return null;
+    }
+
+    return targetUrl;
   }
 
 }

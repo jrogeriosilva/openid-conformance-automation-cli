@@ -1,4 +1,5 @@
 import { chromium, Browser, BrowserContext, Page } from "playwright";
+import { BrowserNavigationError } from "./errors";
 
 export class BrowserSession {
   private browser: Browser | null = null;
@@ -22,11 +23,16 @@ export class BrowserSession {
     url: string,
     waitFor: "networkidle" | "domcontentloaded" | "load" = "networkidle"
   ): Promise<string> {
-    await this.initialize();
-    if (!this.page) throw new Error("Browser page not initialized");
+    try {
+      await this.initialize();
+      if (!this.page) throw new Error("Browser page not initialized");
 
-    await this.page.goto(url, { waitUntil: waitFor });
-    return this.page.url();
+      await this.page.goto(url, { waitUntil: waitFor });
+      return this.page.url();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      throw new BrowserNavigationError(url, errorMessage, err instanceof Error ? err : undefined);
+    }
   }
 
   async close(): Promise<void> {
