@@ -8,6 +8,18 @@ import { CONSTANTS } from "../core/constants";
 import { buildPage } from "./pageBuilder";
 import type { ExecutionSummary } from "../core/types";
 
+/** Shape of a single log line stored for late-joining SSE clients. */
+interface LogLine {
+  severity: string;
+  message: string;
+  moduleName: string | null;
+  actionName: string | null;
+  at: number;
+}
+
+/** Maximum number of log lines kept in memory per execution. */
+const LOG_LINE_CAP = 5_000;
+
 /**
  * OidcAutopilotDashboard encapsulates the entire GUI web application.
  *
@@ -21,7 +33,7 @@ export class OidcAutopilotDashboard {
 
   // Mutable run state
   private executionInFlight = false;
-  private collectedLines: Array<{ severity: string; message: string; moduleName: string | null; actionName: string | null; at: number }> = [];
+  private collectedLines: LogLine[] = [];
   private finalOutcome: ExecutionSummary | null = null;
   private errorDetail: string | null = null;
 
@@ -71,10 +83,9 @@ export class OidcAutopilotDashboard {
 
   // ── SSE broadcasting ────────────────────────────────
 
-  private broadcastLine(lineObj: typeof this.collectedLines[number]): void {
+  private broadcastLine(lineObj: LogLine): void {
     this.collectedLines.push(lineObj);
-    // Cap stored lines at 5000
-    while (this.collectedLines.length > 5000) this.collectedLines.shift();
+    while (this.collectedLines.length > LOG_LINE_CAP) this.collectedLines.shift();
 
     const wire = `data: ${JSON.stringify(lineObj)}\n\n`;
     for (const conn of this.activeSseConnections) conn.write(wire);
