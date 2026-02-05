@@ -19,7 +19,16 @@ export interface Logger {
   summary(summary: ExecutionSummary): void;
 }
 
-export const createLogger = (): Logger => {
+/**
+ * Optional hooks for intercepting log output.
+ * Used by the GUI dashboard to stream log lines to web clients.
+ */
+export interface LoggerHooks {
+  onLine?: (severity: string, message: string, context?: LogContext) => void;
+  onSummary?: (summary: ExecutionSummary) => void;
+}
+
+export const createLogger = (hooks?: LoggerHooks): Logger => {
   const formatMessage = (message: string, context?: LogContext): string => {
     if (!context) {
       return message;
@@ -79,13 +88,23 @@ export const createLogger = (): Logger => {
   };
 
   return {
-    info: (message, context) => console.log(`[INFO]: ${formatMessage(message, context)}`),
-    log: (message, context) => console.log(formatMessage(message, context)),
-    error: (message, context) => console.error(`[ERROR]: ${formatMessage(message, context)}`),
+    info: (message, context) => {
+      console.log(`[INFO]: ${formatMessage(message, context)}`);
+      hooks?.onLine?.("info", message, context);
+    },
+    log: (message, context) => {
+      console.log(formatMessage(message, context));
+      hooks?.onLine?.("log", message, context);
+    },
+    error: (message, context) => {
+      console.error(`[ERROR]: ${formatMessage(message, context)}`);
+      hooks?.onLine?.("error", message, context);
+    },
     debug: (message, context) => {
       if (process.env.DEBUG) {
         console.debug(`[DEBUG]: ${formatDebugMessage(message, context)}`);
       }
+      hooks?.onLine?.("debug", message, context);
     },
     summary: (summary) => {
       console.log("");
@@ -98,6 +117,7 @@ export const createLogger = (): Logger => {
       }
       console.log(`SKIPPED/INTERRUPTED: ${summary.skipped + summary.interrupted}`);
       console.log("-".repeat(40));
+      hooks?.onSummary?.(summary);
     },
   };
 };
