@@ -19,11 +19,12 @@ describe("pageBuilder", () => {
     expect(html).toContain("Launch Plan");
   });
 
-  it("should include the log viewer area", () => {
+  it("should include the collapsible log drawer", () => {
     const html = buildPage();
 
     expect(html).toContain('id="logBox"');
-    expect(html).toContain("Live Log");
+    expect(html).toContain('id="logDrawer"');
+    expect(html).toContain("Logs");
   });
 
   it("should include SSE connection code targeting /api/feed", () => {
@@ -33,11 +34,11 @@ describe("pageBuilder", () => {
     expect(html).toContain("EventSource");
   });
 
-  it("should include the outcome panel for displaying results", () => {
+  it("should include the module cards grid for displaying test status", () => {
     const html = buildPage();
 
-    expect(html).toContain('id="outcomePanel"');
-    expect(html).toContain("Results");
-    expect(html).toContain('id="moduleTable"');
+    expect(html).toContain('id="cardsGrid"');
+    expect(html).toContain("moduleList");
+    expect(html).toContain("moduleUpdate");
   });
 });

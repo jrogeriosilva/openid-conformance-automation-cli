@@ -17,6 +17,14 @@ interface LogLine {
   at: number;
 }
 
+/** Per-module live status sent to the dashboard as cards. */
+interface ModuleCard {
+  name: string;
+  status: string;   // PENDING | RUNNING | WAITING | FINISHED | INTERRUPTED | ERROR
+  result: string;   // "" | PASSED | FAILED | WARNING | SKIPPED | REVIEW | UNKNOWN
+  lastMessage: string;
+}
+
 /** Maximum number of log lines kept in memory per execution. */
 const LOG_LINE_CAP = 5_000;
 
@@ -36,6 +44,7 @@ export class OidcAutopilotDashboard {
   private collectedLines: LogLine[] = [];
   private finalOutcome: ExecutionSummary | null = null;
   private errorDetail: string | null = null;
+  private moduleCards: ModuleCard[] = [];
 
   constructor(private readonly listenPort: number) {
     this.expressApp.use(express.json());
@@ -62,6 +71,7 @@ export class OidcAutopilotDashboard {
         lineCount: this.collectedLines.length,
         outcome: this.finalOutcome,
         error: this.errorDetail,
+        moduleCards: this.moduleCards,
       });
     });
 
@@ -89,11 +99,55 @@ export class OidcAutopilotDashboard {
 
     const wire = `data: ${JSON.stringify(lineObj)}\n\n`;
     for (const conn of this.activeSseConnections) conn.write(wire);
+
+    this.updateModuleCardFromLog(lineObj);
   }
 
   private broadcastOutcome(outcome: ExecutionSummary): void {
     const wire = `event: planDone\ndata: ${JSON.stringify(outcome)}\n\n`;
     for (const conn of this.activeSseConnections) conn.write(wire);
+  }
+
+  private broadcastModuleList(cards: ModuleCard[]): void {
+    const wire = `event: moduleList\ndata: ${JSON.stringify(cards)}\n\n`;
+    for (const conn of this.activeSseConnections) conn.write(wire);
+  }
+
+  private broadcastModuleUpdate(card: ModuleCard): void {
+    const wire = `event: moduleUpdate\ndata: ${JSON.stringify(card)}\n\n`;
+    for (const conn of this.activeSseConnections) conn.write(wire);
+  }
+
+  /** Parse log messages to extract per-module state changes and update cards. */
+  private updateModuleCardFromLog(line: LogLine): void {
+    if (!line.moduleName) return;
+    const card = this.moduleCards.find((c) => c.name === line.moduleName);
+    if (!card) return;
+
+    card.lastMessage = line.message;
+
+    // Detect state from polling messages like "Polling... Current state: WAITING"
+    const stateMatch = line.message.match(/Current state:\s*(\w+)/);
+    if (stateMatch) {
+      const detectedState = stateMatch[1];
+      card.status = detectedState;
+      this.broadcastModuleUpdate(card);
+      return;
+    }
+
+    // Detect registration start
+    if (line.message === "Registering...") {
+      card.status = "RUNNING";
+      this.broadcastModuleUpdate(card);
+      return;
+    }
+
+    // Detect module completion
+    if (line.message === "Module execution completed") {
+      // Final result will come from planDone, but mark as FINISHED
+      card.status = "FINISHED";
+      this.broadcastModuleUpdate(card);
+    }
   }
 
   // ── Launch handler ──────────────────────────────────
@@ -119,6 +173,7 @@ export class OidcAutopilotDashboard {
     this.finalOutcome = null;
     this.errorDetail = null;
     this.executionInFlight = true;
+    this.moduleCards = [];
 
     rs.status(202).json({ accepted: true });
 
@@ -165,9 +220,29 @@ export class OidcAutopilotDashboard {
       }
       logger.info(`Plan: ${nodePath.basename(resolvedCfgPath)} [${planId}] – ${planCfg.modules.length} module(s)`);
 
+      // Initialize module cards from config so the dashboard can show them immediately
+      this.moduleCards = planCfg.modules.map((m) => ({
+        name: m.name,
+        status: "PENDING",
+        result: "",
+        lastMessage: "Waiting to start",
+      }));
+      this.broadcastModuleList(this.moduleCards);
+
       const api = new ConformanceApi({ baseUrl: hostUrl, token: tok });
       const runner = new Runner({ api, pollInterval: pollSec, timeout: toutSec, headless: hdls, logger });
       const result = await runner.executePlan({ planId, config: planCfg });
+
+      // Update cards with final results
+      for (const mod of result.modules) {
+        const card = this.moduleCards.find((c) => c.name === mod.name);
+        if (card) {
+          card.status = mod.state;
+          card.result = mod.result;
+          card.lastMessage = mod.result;
+        }
+      }
+
       logger.summary(result);
     };
 
