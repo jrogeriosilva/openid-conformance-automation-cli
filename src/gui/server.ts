@@ -1,5 +1,7 @@
 import express from "express";
 import nodePath from "node:path";
+import fs from "node:fs";
+import { config as loadEnv } from "dotenv";
 import { createLogger, type LogContext } from "../core/logger";
 import { loadConfig } from "../config/loadConfig";
 import { ConformanceApi } from "../core/conformanceApi";
@@ -25,8 +27,58 @@ interface ModuleCard {
   lastMessage: string;
 }
 
+/** Environment variable defaults loaded from .env for form pre-fill. */
+interface EnvDefaults {
+  planId: string;
+  token: string;
+  serverUrl: string;
+}
+
 /** Maximum number of log lines kept in memory per execution. */
 const LOG_LINE_CAP = 5_000;
+
+/**
+ * Scans the current working directory (recursively up to 2 levels)
+ * for files ending in `.config.json`.
+ */
+function discoverConfigFiles(): string[] {
+  const cwd = process.cwd();
+  const results: string[] = [];
+
+  function scanDir(dir: string, depth: number): void {
+    if (depth > 2) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === "dist" || entry.name === "build") continue;
+      const fullPath = nodePath.join(dir, entry.name);
+      if (entry.isFile() && entry.name.endsWith(".config.json")) {
+        results.push(nodePath.relative(cwd, fullPath));
+      } else if (entry.isDirectory()) {
+        scanDir(fullPath, depth + 1);
+      }
+    }
+  }
+
+  scanDir(cwd, 0);
+  return results.sort();
+}
+
+/**
+ * Reads pre-fill values from environment variables (loaded via dotenv).
+ */
+function readEnvDefaults(): EnvDefaults {
+  loadEnv();
+  return {
+    planId: process.env.CONFORMANCE_PLAN_ID ?? "",
+    token: process.env.CONFORMANCE_TOKEN ?? "",
+    serverUrl: process.env.CONFORMANCE_SERVER ?? "https://www.certification.openid.net",
+  };
+}
 
 /**
  * OidcAutopilotDashboard encapsulates the entire GUI web application.
@@ -41,6 +93,7 @@ export class OidcAutopilotDashboard {
 
   // Mutable run state
   private executionInFlight = false;
+  private stoppedByUser = false;
   private collectedLines: LogLine[] = [];
   private finalOutcome: ExecutionSummary | null = null;
   private errorDetail: string | null = null;
@@ -62,7 +115,9 @@ export class OidcAutopilotDashboard {
 
   private registerRoutes(): void {
     this.expressApp.get("/", (_rq, rs) => {
-      rs.type("html").send(buildPage());
+      const envDefaults = readEnvDefaults();
+      const configFiles = discoverConfigFiles();
+      rs.type("html").send(buildPage(envDefaults, configFiles));
     });
 
     this.expressApp.get("/api/health", (_rq, rs) => {
@@ -73,6 +128,10 @@ export class OidcAutopilotDashboard {
         error: this.errorDetail,
         moduleCards: this.moduleCards,
       });
+    });
+
+    this.expressApp.get("/api/configs", (_rq, rs) => {
+      rs.json({ files: discoverConfigFiles() });
     });
 
     this.expressApp.get("/api/feed", (rq, rs) => {
@@ -88,6 +147,10 @@ export class OidcAutopilotDashboard {
 
     this.expressApp.post("/api/launch", (rq, rs) => {
       this.handleLaunch(rq, rs);
+    });
+
+    this.expressApp.post("/api/stop", (_rq, rs) => {
+      this.handleStop(rs);
     });
   }
 
@@ -118,6 +181,11 @@ export class OidcAutopilotDashboard {
     for (const conn of this.activeSseConnections) conn.write(wire);
   }
 
+  private broadcastStopped(): void {
+    const wire = `event: stopped\ndata: {}\n\n`;
+    for (const conn of this.activeSseConnections) conn.write(wire);
+  }
+
   /** Parse log messages to extract per-module state changes and update cards. */
   private updateModuleCardFromLog(line: LogLine): void {
     if (!line.moduleName) return;
@@ -144,7 +212,6 @@ export class OidcAutopilotDashboard {
 
     // Detect module completion
     if (line.message === "Module execution completed") {
-      // Final result will come from planDone, but mark as FINISHED
       card.status = "FINISHED";
       this.broadcastModuleUpdate(card);
     }
@@ -173,6 +240,7 @@ export class OidcAutopilotDashboard {
     this.finalOutcome = null;
     this.errorDetail = null;
     this.executionInFlight = true;
+    this.stoppedByUser = false;
     this.moduleCards = [];
 
     rs.status(202).json({ accepted: true });
@@ -188,6 +256,30 @@ export class OidcAutopilotDashboard {
     );
   }
 
+  // ── Stop handler ────────────────────────────────────
+
+  private handleStop(rs: express.Response): void {
+    if (!this.executionInFlight) {
+      rs.status(409).json({ error: "No execution is currently running" });
+      return;
+    }
+
+    this.stoppedByUser = true;
+    this.executionInFlight = false;
+    this.errorDetail = "Stopped by user";
+
+    // Mark all non-finished cards as interrupted
+    for (const card of this.moduleCards) {
+      if (card.status !== "FINISHED") {
+        card.status = "INTERRUPTED";
+        card.lastMessage = "Stopped by user";
+      }
+    }
+
+    this.broadcastStopped();
+    rs.json({ stopped: true });
+  }
+
   // ── Background plan execution ───────────────────────
 
   private executeConformancePlan(
@@ -197,6 +289,7 @@ export class OidcAutopilotDashboard {
     // Build a logger that feeds into our SSE pipeline
     const logger = createLogger({
       onLine: (severity: string, message: string, context?: LogContext) => {
+        if (this.stoppedByUser) return;
         this.broadcastLine({
           severity,
           message,
@@ -206,6 +299,7 @@ export class OidcAutopilotDashboard {
         });
       },
       onSummary: (outcome: ExecutionSummary) => {
+        if (this.stoppedByUser) return;
         this.finalOutcome = outcome;
         this.executionInFlight = false;
         this.broadcastOutcome(outcome);
@@ -233,6 +327,8 @@ export class OidcAutopilotDashboard {
       const runner = new Runner({ api, pollInterval: pollSec, timeout: toutSec, headless: hdls, logger });
       const result = await runner.executePlan({ planId, config: planCfg });
 
+      if (this.stoppedByUser) return;
+
       // Update cards with final results
       for (const mod of result.modules) {
         const card = this.moduleCards.find((c) => c.name === mod.name);
@@ -247,6 +343,7 @@ export class OidcAutopilotDashboard {
     };
 
     doWork().catch((err) => {
+      if (this.stoppedByUser) return;
       const msg = err instanceof Error ? err.message : String(err);
       this.errorDetail = msg;
       this.executionInFlight = false;

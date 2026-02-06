@@ -2,11 +2,21 @@
  * Generates the single-page HTML dashboard for OIDC Autopilot.
  *
  * Layout:
- *  - Left sidebar: Plan configuration form
- *  - Main area: Module cards grid (each test = one card with live status)
+ *  - Top area: Module cards grid (each test = one card with live status)
+ *  - Below cards: Configuration form (sidebar-style, collapsed into a row)
  *  - Bottom: Collapsible log panel
+ *
+ * @param envDefaults - Pre-fill values from .env (CONFORMANCE_PLAN_ID, etc.)
+ * @param configFiles - List of discovered .config.json files for the dropdown
  */
-export function buildPage(): string {
+export function buildPage(
+  envDefaults: { planId: string; token: string; serverUrl: string },
+  configFiles: string[],
+): string {
+  const configOptions = configFiles
+    .map((f) => `<option value="${escapeAttr(f)}">${escapeHtml(f)}</option>`)
+    .join("\n          ");
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,46 +34,54 @@ ${cssBlock()}
   <div class="topbar-counters" id="topCounters"></div>
 </header>
 
-<div class="app-layout">
-  <!-- Left sidebar: config form -->
-  <aside class="sidebar">
-    <h2>Plan Configuration</h2>
-    <form id="launchForm" autocomplete="off">
-      <label>Config File Path
-        <input id="fConfigPath" type="text" placeholder="./my-plan.config.json" required>
-      </label>
-      <label>Plan ID
-        <input id="fPlanId" type="text" placeholder="plan-abc-123" required>
-      </label>
-      <label>Bearer Token
-        <input id="fToken" type="password" placeholder="your-api-token" required>
-      </label>
-      <label>Server URL
-        <input id="fServerUrl" type="text" value="https://www.certification.openid.net">
-      </label>
-      <div class="row">
-        <label class="half">Poll Interval (s)
-          <input id="fPollInterval" type="number" value="5" min="1">
+<!-- Module cards at the TOP -->
+<section class="cards-section" id="cardsSection">
+  <div id="cardsPlaceholder" class="cards-placeholder">
+    <p>Configure and launch a plan to see test modules here.</p>
+  </div>
+  <div id="cardsGrid" class="cards-grid" hidden></div>
+</section>
+
+<!-- Configuration form -->
+<section class="config-section">
+  <details class="config-details" open>
+    <summary class="config-summary">Plan Configuration</summary>
+    <form id="launchForm" autocomplete="off" class="config-form">
+      <div class="form-row">
+        <label class="form-field">Config File
+          <select id="fConfigPath" required>
+            <option value="">— select a .config.json file —</option>
+            ${configOptions}
+          </select>
         </label>
-        <label class="half">Timeout (s)
-          <input id="fTimeout" type="number" value="240" min="1">
+        <label class="form-field">Plan ID
+          <input id="fPlanId" type="text" placeholder="plan-abc-123" value="${escapeAttr(envDefaults.planId)}" required>
+        </label>
+        <label class="form-field">Bearer Token
+          <input id="fToken" type="password" placeholder="your-api-token" value="${escapeAttr(envDefaults.token)}" required>
+        </label>
+        <label class="form-field">Server URL
+          <input id="fServerUrl" type="text" value="${escapeAttr(envDefaults.serverUrl)}">
         </label>
       </div>
-      <label class="cb-row">
-        <input id="fHeadless" type="checkbox" checked> Headless browser
-      </label>
-      <button id="btnLaunch" type="submit">Launch Plan</button>
+      <div class="form-row">
+        <label class="form-field-sm">Poll Interval (s)
+          <input id="fPollInterval" type="number" value="5" min="1">
+        </label>
+        <label class="form-field-sm">Timeout (s)
+          <input id="fTimeout" type="number" value="240" min="1">
+        </label>
+        <label class="cb-row">
+          <input id="fHeadless" type="checkbox" checked> Headless browser
+        </label>
+        <div class="form-actions">
+          <button id="btnLaunch" type="submit" class="btn-launch">Launch Plan</button>
+          <button id="btnStop" type="button" class="btn-stop" disabled>Stop</button>
+        </div>
+      </div>
     </form>
-  </aside>
-
-  <!-- Main area: module cards -->
-  <main class="main-area">
-    <div id="cardsPlaceholder" class="cards-placeholder">
-      <p>Configure and launch a plan to see test modules here.</p>
-    </div>
-    <div id="cardsGrid" class="cards-grid" hidden></div>
-  </main>
-</div>
+  </details>
+</section>
 
 <!-- Collapsible bottom log panel -->
 <div class="log-drawer" id="logDrawer">
@@ -85,6 +103,14 @@ ${jsBlock()}
 </script>
 </body>
 </html>`;
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 // ── CSS ─────────────────────────────────────────────
@@ -110,32 +136,10 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .tc-warning{background:#d29a0033;color:#d29922}
 .tc-total{background:#30363d;color:#c9d1d9}
 
-/* ── App layout: sidebar + main ── */
-.app-layout{display:flex;flex:1;overflow:hidden}
-
-/* ── Sidebar ── */
-.sidebar{width:340px;min-width:300px;background:#161b22;border-right:1px solid #30363d;padding:1rem;overflow-y:auto;flex-shrink:0}
-.sidebar h2{font-size:1rem;margin-bottom:.75rem;color:#c9d1d9}
-label{display:block;font-size:.82rem;color:#8b949e;margin-bottom:.55rem}
-label input[type="text"],label input[type="password"],label input[type="number"]{
-  display:block;width:100%;margin-top:3px;padding:6px 9px;background:#0d1117;border:1px solid #30363d;border-radius:5px;color:#c9d1d9;font-size:.85rem}
-label input:focus{outline:none;border-color:#58a6ff}
-.row{display:flex;gap:.6rem}
-.half{flex:1}
-.cb-row{display:flex;align-items:center;gap:.4rem;flex-direction:row;cursor:pointer}
-.cb-row input{width:auto;margin:0}
-button[type="submit"]{
-  margin-top:.6rem;width:100%;padding:8px;background:#238636;border:none;border-radius:6px;
-  color:#fff;font-weight:600;font-size:.85rem;cursor:pointer}
-button[type="submit"]:hover{background:#2ea043}
-button[type="submit"]:disabled{opacity:.5;cursor:not-allowed}
-.small-btn{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;font-size:.72rem;padding:2px 8px;cursor:pointer}
-.small-btn:hover{color:#c9d1d9;border-color:#8b949e}
-
-/* ── Main area with cards ── */
-.main-area{flex:1;overflow-y:auto;padding:1rem}
-.cards-placeholder{display:flex;align-items:center;justify-content:center;height:100%;color:#484f58;font-size:.95rem}
-.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.75rem;align-content:start}
+/* ── Cards section (TOP of page) ── */
+.cards-section{flex:1;overflow-y:auto;padding:1rem 1.5rem}
+.cards-placeholder{display:flex;align-items:center;justify-content:center;min-height:120px;color:#484f58;font-size:.95rem}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;align-content:start}
 
 /* ── Module card ── */
 .mod-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.85rem 1rem;display:flex;flex-direction:column;gap:.4rem;transition:border-color .2s}
@@ -158,6 +162,33 @@ button[type="submit"]:disabled{opacity:.5;cursor:not-allowed}
 .mcr-WARNING{color:#d29922}
 .mcr-SKIPPED,.mcr-REVIEW,.mcr-UNKNOWN{color:#8b949e}
 .mod-card-msg{font-size:.72rem;color:#6e7681;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1em}
+
+/* ── Config section ── */
+.config-section{flex-shrink:0;background:#161b22;border-top:1px solid #30363d;padding:0 1.5rem}
+.config-details{border:none}
+.config-summary{padding:.6rem 0;font-size:.9rem;font-weight:600;color:#c9d1d9;cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem}
+.config-summary::before{content:'\\25B6';font-size:.55rem;transition:transform .2s;display:inline-block}
+.config-details[open] .config-summary::before{transform:rotate(90deg)}
+.config-form{padding-bottom:.75rem}
+.form-row{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:.5rem}
+.form-field{flex:1;min-width:180px;font-size:.82rem;color:#8b949e}
+.form-field input,.form-field select{display:block;width:100%;margin-top:3px;padding:6px 9px;background:#0d1117;border:1px solid #30363d;border-radius:5px;color:#c9d1d9;font-size:.85rem}
+.form-field select{appearance:auto}
+.form-field input:focus,.form-field select:focus{outline:none;border-color:#58a6ff}
+.form-field-sm{flex:0 0 120px;font-size:.82rem;color:#8b949e}
+.form-field-sm input{display:block;width:100%;margin-top:3px;padding:6px 9px;background:#0d1117;border:1px solid #30363d;border-radius:5px;color:#c9d1d9;font-size:.85rem}
+.form-field-sm input:focus{outline:none;border-color:#58a6ff}
+.cb-row{display:flex;align-items:center;gap:.4rem;font-size:.82rem;color:#8b949e;cursor:pointer;align-self:flex-end;padding-bottom:4px}
+.cb-row input{width:auto;margin:0}
+.form-actions{display:flex;gap:.5rem;align-self:flex-end;padding-bottom:0}
+.btn-launch{padding:7px 20px;background:#238636;border:none;border-radius:6px;color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap}
+.btn-launch:hover{background:#2ea043}
+.btn-launch:disabled{opacity:.5;cursor:not-allowed}
+.btn-stop{padding:7px 16px;background:#da3633;border:none;border-radius:6px;color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap}
+.btn-stop:hover{background:#f85149}
+.btn-stop:disabled{opacity:.35;cursor:not-allowed}
+.small-btn{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;font-size:.72rem;padding:2px 8px;cursor:pointer}
+.small-btn:hover{color:#c9d1d9;border-color:#8b949e}
 
 /* ── Collapsible log drawer ── */
 .log-drawer{flex-shrink:0;background:#161b22;border-top:1px solid #30363d;display:flex;flex-direction:column;transition:height .25s ease}
@@ -188,6 +219,7 @@ function jsBlock(): string {
   var badge = document.getElementById('statusBadge');
   var form = document.getElementById('launchForm');
   var btnLaunch = document.getElementById('btnLaunch');
+  var btnStop = document.getElementById('btnStop');
   var btnClear = document.getElementById('btnClear');
   var cardsGrid = document.getElementById('cardsGrid');
   var cardsPlaceholder = document.getElementById('cardsPlaceholder');
@@ -232,14 +264,18 @@ function jsBlock(): string {
     badge.textContent = label;
   }
 
+  function setRunning(running) {
+    btnLaunch.disabled = running;
+    btnStop.disabled = !running;
+  }
+
   // ── Module cards ──
   function renderCards(modules) {
     cardsGrid.innerHTML = '';
     cardsPlaceholder.hidden = true;
     cardsGrid.hidden = false;
     for (var i = 0; i < modules.length; i++) {
-      var card = createCard(modules[i]);
-      cardsGrid.appendChild(card);
+      cardsGrid.appendChild(createCard(modules[i]));
     }
   }
 
@@ -324,18 +360,15 @@ function jsBlock(): string {
 
   function handlePlanDone(outcome) {
     renderTopCounters(outcome);
-
-    // Update all cards with final results
     if (outcome.modules) {
       for (var i = 0; i < outcome.modules.length; i++) {
         var m = outcome.modules[i];
         updateCard({ name: m.name, status: m.state, result: m.result, lastMessage: m.result });
       }
     }
-
     var hasFails = outcome.failed > 0;
     setBadge(hasFails ? 'errored' : 'done', hasFails ? 'Failed' : 'Done');
-    btnLaunch.disabled = false;
+    setRunning(false);
   }
 
   // ── SSE ──
@@ -349,30 +382,43 @@ function jsBlock(): string {
   });
 
   evtSource.addEventListener('moduleList', function(ev) {
-    try {
-      var modules = JSON.parse(ev.data);
-      renderCards(modules);
-    } catch(_) {}
+    try { renderCards(JSON.parse(ev.data)); } catch(_) {}
   });
 
   evtSource.addEventListener('moduleUpdate', function(ev) {
-    try {
-      var mod = JSON.parse(ev.data);
-      updateCard(mod);
-    } catch(_) {}
+    try { updateCard(JSON.parse(ev.data)); } catch(_) {}
   });
 
   evtSource.addEventListener('planDone', function(ev) {
-    try {
-      var o = JSON.parse(ev.data);
-      handlePlanDone(o);
-    } catch(_) {}
+    try { handlePlanDone(JSON.parse(ev.data)); } catch(_) {}
+  });
+
+  evtSource.addEventListener('stopped', function() {
+    setBadge('errored', 'Stopped');
+    setRunning(false);
+    appendLog('error', 'Execution stopped by user.');
+  });
+
+  // ── Stop button ──
+  btnStop.addEventListener('click', function() {
+    btnStop.disabled = true;
+    fetch('/api/stop', { method: 'POST' })
+      .then(function(resp) {
+        if (!resp.ok) {
+          return resp.json().then(function(j) {
+            appendLog('error', 'Stop failed: ' + (j.error || resp.statusText));
+          });
+        }
+      })
+      .catch(function(err) {
+        appendLog('error', 'Stop request failed: ' + err.message);
+      });
   });
 
   // ── Form submit ──
   form.addEventListener('submit', function(ev) {
     ev.preventDefault();
-    btnLaunch.disabled = true;
+    setRunning(true);
     setBadge('running', 'Running');
     logBox.innerHTML = '';
     logLineCount = 0;
@@ -401,19 +447,22 @@ function jsBlock(): string {
         return resp.json().then(function(j) {
           appendLog('error', 'Launch failed: ' + (j.error || resp.statusText));
           setBadge('errored', 'Error');
-          btnLaunch.disabled = false;
+          setRunning(false);
         });
       }
     }).catch(function(err) {
       appendLog('error', 'Network error: ' + err.message);
       setBadge('errored', 'Error');
-      btnLaunch.disabled = false;
+      setRunning(false);
     });
   });
 
   // ── Restore state on load ──
   fetch('/api/health').then(function(r) { return r.json(); }).then(function(d) {
-    if (d.executionInFlight) setBadge('running', 'Running');
+    if (d.executionInFlight) {
+      setBadge('running', 'Running');
+      setRunning(true);
+    }
     if (d.moduleCards && d.moduleCards.length > 0) renderCards(d.moduleCards);
     if (d.outcome) handlePlanDone(d.outcome);
   }).catch(function() {});
