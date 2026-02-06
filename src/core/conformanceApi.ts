@@ -108,33 +108,15 @@ export class ConformanceApi {
     capture?: CaptureContext
   ): Promise<z.infer<typeof moduleInfoSchema>> {
     const url = this.client.buildUrl(`api/info/${runnerId}`);
-    const method = "GET";
-    const headers = this.client.getAuthHeaders();
-    const maskedHeaders = { ...headers };
-    if (maskedHeaders.Authorization) {
-      maskedHeaders.Authorization = maskedHeaders.Authorization.replace(/Bearer .+/, "Bearer ****");
-    }
-
-    console.log("[ConformanceApi] getModuleInfo REQUEST", JSON.stringify({
-      endpoint: url,
-      method,
-      headers: maskedHeaders,
-      body: null,
-    }, null, 2));
-
     const response = await this.client.requestJson<unknown>(
       url,
-      { method, headers },
+      {
+        method: "GET",
+        headers: this.client.getAuthHeaders(),
+      },
       200,
       { capture }
     );
-
-    console.log("[ConformanceApi] getModuleInfo RESPONSE", JSON.stringify({
-      endpoint: url,
-      status: 200,
-      body: response,
-    }, null, 2));
-
     return moduleInfoSchema.parse(response);
   }
 
@@ -186,39 +168,15 @@ export class ConformanceApi {
 
   async deleteRunner(runnerId: string): Promise<void> {
     const url = this.client.buildUrl(`api/runner/${runnerId}`);
-    const method = "DELETE";
-    const headers = this.client.getAuthHeaders();
-    const maskedHeaders = { ...headers };
-    if (maskedHeaders.Authorization) {
-      maskedHeaders.Authorization = maskedHeaders.Authorization.replace(/Bearer .+/, "Bearer ****");
-    }
-
-    console.log("[ConformanceApi] deleteRunner REQUEST", JSON.stringify({
-      endpoint: url,
-      method,
-      headers: maskedHeaders,
-      body: null,
-    }, null, 2));
-
-    try {
-      await this.client.requestJson<unknown>(
-        url,
-        { method, headers },
-        200,
-        { allowNonJson: true }
-      );
-      console.log("[ConformanceApi] deleteRunner RESPONSE", JSON.stringify({
-        endpoint: url,
-        status: 200,
-        body: "(success)",
-      }, null, 2));
-    } catch (err) {
-      console.log("[ConformanceApi] deleteRunner RESPONSE ERROR", JSON.stringify({
-        endpoint: url,
-        error: err instanceof Error ? err.message : String(err),
-      }, null, 2));
-      throw err;
-    }
+    await this.client.requestJson<unknown>(
+      url,
+      {
+        method: "DELETE",
+        headers: this.client.getAuthHeaders(),
+      },
+      200,
+      { allowNonJson: true }
+    );
   }
 
 }
