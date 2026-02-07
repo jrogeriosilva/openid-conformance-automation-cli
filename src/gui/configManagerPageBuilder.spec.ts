@@ -67,10 +67,11 @@ describe("configManagerPageBuilder", () => {
     expect(html).toContain('id="selectedModulesList"');
   });
 
-  it("should include ordering buttons (up/down) in CSS and JS", () => {
-    expect(html).toContain("order-btn");
-    expect(html).toContain("btn-move-up");
-    expect(html).toContain("btn-move-down");
+  it("should include drag handles for reordering", () => {
+    expect(html).toContain("drag-handle");
+    expect(html).toContain("dragging");
+    expect(html).toContain("drag-over-above");
+    expect(html).toContain("drag-over-below");
   });
 
   it("should include the module config detail section", () => {
@@ -109,9 +110,10 @@ describe("configManagerPageBuilder", () => {
     expect(html).toContain("selected-module-item");
   });
 
-  it("should include moveAction and moveModule functions in JS", () => {
-    expect(html).toContain("moveAction");
-    expect(html).toContain("moveModule");
-    expect(html).toContain("moveModuleAction");
+  it("should include drag-to-reorder and standardized delete in JS", () => {
+    expect(html).toContain("dragstart");
+    expect(html).toContain("clearDragIndicators");
+    expect(html).toContain("btn-delete");
+    expect(html).not.toContain("btn-remove");
   });
 });

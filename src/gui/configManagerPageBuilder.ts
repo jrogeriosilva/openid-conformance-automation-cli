@@ -154,8 +154,8 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .var-row{display:flex;gap:.4rem;margin-bottom:.3rem;align-items:center}
 .var-row input{flex:1;padding:4px 7px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;font-size:.8rem}
 .var-row input:focus{outline:none;border-color:#58a6ff}
-.btn-remove{background:none;border:none;color:#f85149;cursor:pointer;font-size:.9rem;padding:2px 6px;line-height:1}
-.btn-remove:hover{color:#ff7b72}
+.btn-delete{background:none;border:1px solid #30363d;border-radius:4px;color:#f85149;cursor:pointer;font-size:.75rem;padding:2px 7px;line-height:1}
+.btn-delete:hover{color:#ff7b72;border-color:#f85149}
 .btn-add{background:none;border:1px dashed #30363d;border-radius:4px;color:#8b949e;font-size:.78rem;padding:4px 10px;cursor:pointer;width:100%;text-align:center;margin-top:.3rem}
 .btn-add:hover{border-color:#58a6ff;color:#58a6ff}
 
@@ -170,9 +170,12 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .btn-small{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;font-size:.72rem;padding:2px 8px;cursor:pointer}
 .btn-small:hover{color:#c9d1d9;border-color:#8b949e}
 
-/* ── Order buttons ── */
-.order-btn{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;font-size:.7rem;padding:1px 6px;cursor:pointer;line-height:1.2}
-.order-btn:hover{color:#c9d1d9;border-color:#8b949e}
+/* ── Drag handle ── */
+.drag-handle{color:#484f58;cursor:grab;font-size:.95rem;padding:0 4px;user-select:none;line-height:1;flex-shrink:0;letter-spacing:-2px}
+.drag-handle:hover{color:#8b949e}
+.dragging{opacity:.4;background:#1f6feb22}
+.drag-over-above{border-top:2px solid #58a6ff !important}
+.drag-over-below{border-bottom:2px solid #58a6ff !important}
 
 /* ── Action editor ── */
 .action-editor{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.8rem;margin-top:.5rem}
@@ -201,7 +204,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .selected-module-item:last-child{border-bottom:none}
 .selected-module-item:hover{background:#161b22}
 .selected-module-item.active{background:#1f6feb22}
-.selected-module-item .order-btns{display:flex;gap:.2rem;flex-shrink:0}
+.selected-module-item .drag-handle{margin-right:.2rem}
 .selected-module-item-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:#e6edf3}
 .selected-module-item-actions{display:flex;gap:.3rem;flex-shrink:0}
 
@@ -209,7 +212,7 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .md-sub{font-size:.78rem;color:#8b949e;margin-bottom:.3rem;font-weight:600}
 .md-action-row{display:flex;align-items:center;gap:.4rem;padding:.25rem 0;font-size:.8rem}
 .md-action-row input[type=checkbox]{margin:0}
-.md-action-row .order-btns{display:flex;gap:.2rem}
+.md-action-row .drag-handle{margin-right:.2rem}
 
 /* ── Status bar ── */
 .status-bar{flex-shrink:0;padding:.4rem 1.5rem;background:#161b22;border-top:1px solid #30363d;font-size:.75rem;color:#8b949e}
@@ -431,7 +434,7 @@ function jsBlock(): string {
         var inpVal = document.createElement('input');
         inpVal.type = 'text'; inpVal.placeholder = 'value'; inpVal.value = state.config.variables[key];
         var btnDel = document.createElement('button');
-        btnDel.className = 'btn-remove'; btnDel.textContent = 'x'; btnDel.type = 'button';
+        btnDel.className = 'btn-delete'; btnDel.textContent = 'x'; btnDel.type = 'button';
 
         inpKey.addEventListener('change', function() {
           var newKey = inpKey.value.trim();
@@ -476,7 +479,7 @@ function jsBlock(): string {
         var inp = document.createElement('input');
         inp.type = 'text'; inp.placeholder = 'variable name'; inp.value = state.config.capture_vars[idx];
         var btnDel = document.createElement('button');
-        btnDel.className = 'btn-remove'; btnDel.textContent = 'x'; btnDel.type = 'button';
+        btnDel.className = 'btn-delete'; btnDel.textContent = 'x'; btnDel.type = 'button';
 
         inp.addEventListener('change', function() {
           state.config.capture_vars[idx] = inp.value.trim();
@@ -500,7 +503,7 @@ function jsBlock(): string {
     renderCaptureVars();
   }
 
-  // ── Actions (with ordering) ──
+  // ── Actions ──
   function renderActions() {
     actionCards.innerHTML = '';
     for (var i = 0; i < state.config.actions.length; i++) {
@@ -508,30 +511,6 @@ function jsBlock(): string {
         var a = state.config.actions[idx];
         var card = document.createElement('div');
         card.className = 'action-card';
-
-        // Order buttons
-        var orderBtns = document.createElement('div');
-        orderBtns.className = 'order-btns';
-        orderBtns.style.display = 'flex';
-        orderBtns.style.gap = '.2rem';
-        orderBtns.style.flexShrink = '0';
-
-        var btnUp = document.createElement('button');
-        btnUp.className = 'order-btn btn-move-up';
-        btnUp.textContent = '\\u2191';
-        btnUp.type = 'button';
-        btnUp.disabled = idx === 0;
-        btnUp.addEventListener('click', function(e) { e.stopPropagation(); moveAction(idx, -1); });
-
-        var btnDown = document.createElement('button');
-        btnDown.className = 'order-btn btn-move-down';
-        btnDown.textContent = '\\u2193';
-        btnDown.type = 'button';
-        btnDown.disabled = idx === state.config.actions.length - 1;
-        btnDown.addEventListener('click', function(e) { e.stopPropagation(); moveAction(idx, 1); });
-
-        orderBtns.appendChild(btnUp);
-        orderBtns.appendChild(btnDown);
 
         var nameEl = document.createElement('span');
         nameEl.className = 'action-card-name';
@@ -546,7 +525,7 @@ function jsBlock(): string {
         var btnEdit = document.createElement('button');
         btnEdit.className = 'btn-small'; btnEdit.textContent = 'edit'; btnEdit.type = 'button';
         var btnDel = document.createElement('button');
-        btnDel.className = 'btn-small'; btnDel.textContent = 'del'; btnDel.type = 'button';
+        btnDel.className = 'btn-delete'; btnDel.textContent = 'x'; btnDel.type = 'button';
 
         btnEdit.addEventListener('click', function(e) { e.stopPropagation(); renderActionEditor(idx); });
         btnDel.addEventListener('click', function(e) {
@@ -558,26 +537,10 @@ function jsBlock(): string {
         });
 
         btns.appendChild(btnEdit); btns.appendChild(btnDel);
-        card.appendChild(orderBtns);
         card.appendChild(nameEl); card.appendChild(badge); card.appendChild(btns);
         card.addEventListener('click', function() { renderActionEditor(idx); });
         actionCards.appendChild(card);
       })(i);
-    }
-  }
-
-  function moveAction(idx, direction) {
-    var newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= state.config.actions.length) return;
-    var tmp = state.config.actions[idx];
-    state.config.actions[idx] = state.config.actions[newIdx];
-    state.config.actions[newIdx] = tmp;
-    markDirty();
-    renderActions();
-    if (state.editingActionIndex === idx) {
-      state.editingActionIndex = newIdx;
-    } else if (state.editingActionIndex === newIdx) {
-      state.editingActionIndex = idx;
     }
   }
 
@@ -815,7 +778,9 @@ function jsBlock(): string {
     renderModuleDetail();
   }
 
-  // ── Selected Modules: ordered list ──
+  // ── Selected Modules: ordered list with drag-to-reorder ──
+  var dragModuleIdx = -1;
+
   function renderSelectedModules() {
     selectedModulesList.innerHTML = '';
 
@@ -832,27 +797,57 @@ function jsBlock(): string {
         var mod = state.config.modules[idx];
         var item = document.createElement('div');
         item.className = 'selected-module-item' + (state.selectedModuleName === mod.name ? ' active' : '');
+        item.setAttribute('draggable', 'true');
+        item.dataset.idx = String(idx);
 
-        // Order buttons
-        var orderBtns = document.createElement('div');
-        orderBtns.className = 'order-btns';
+        // Drag handle
+        var handle = document.createElement('span');
+        handle.className = 'drag-handle';
+        handle.textContent = '\\u2807\\u2807';
 
-        var btnUp = document.createElement('button');
-        btnUp.className = 'order-btn btn-move-up';
-        btnUp.textContent = '\\u2191';
-        btnUp.type = 'button';
-        btnUp.disabled = idx === 0;
-        btnUp.addEventListener('click', function(e) { e.stopPropagation(); moveModule(idx, -1); });
-
-        var btnDown = document.createElement('button');
-        btnDown.className = 'order-btn btn-move-down';
-        btnDown.textContent = '\\u2193';
-        btnDown.type = 'button';
-        btnDown.disabled = idx === state.config.modules.length - 1;
-        btnDown.addEventListener('click', function(e) { e.stopPropagation(); moveModule(idx, 1); });
-
-        orderBtns.appendChild(btnUp);
-        orderBtns.appendChild(btnDown);
+        // Drag events
+        item.addEventListener('dragstart', function(e) {
+          dragModuleIdx = idx;
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(idx));
+          setTimeout(function() { item.classList.add('dragging'); }, 0);
+        });
+        item.addEventListener('dragend', function() {
+          item.classList.remove('dragging');
+          dragModuleIdx = -1;
+          clearDragIndicators(selectedModulesList);
+        });
+        item.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          clearDragIndicators(selectedModulesList);
+          if (dragModuleIdx === -1 || dragModuleIdx === idx) return;
+          var rect = item.getBoundingClientRect();
+          var midY = rect.top + rect.height / 2;
+          if (e.clientY < midY) {
+            item.classList.add('drag-over-above');
+          } else {
+            item.classList.add('drag-over-below');
+          }
+        });
+        item.addEventListener('dragleave', function() {
+          item.classList.remove('drag-over-above', 'drag-over-below');
+        });
+        item.addEventListener('drop', function(e) {
+          e.preventDefault();
+          clearDragIndicators(selectedModulesList);
+          var fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+          if (isNaN(fromIdx) || fromIdx === idx) return;
+          var rect = item.getBoundingClientRect();
+          var midY = rect.top + rect.height / 2;
+          var toIdx = e.clientY < midY ? idx : idx + 1;
+          if (fromIdx < toIdx) toIdx--;
+          if (fromIdx === toIdx) return;
+          var moved = state.config.modules.splice(fromIdx, 1)[0];
+          state.config.modules.splice(toIdx, 0, moved);
+          markDirty();
+          renderSelectedModules();
+        });
 
         var nameEl = document.createElement('span');
         nameEl.className = 'selected-module-item-name';
@@ -873,7 +868,7 @@ function jsBlock(): string {
         });
 
         var btnRemove = document.createElement('button');
-        btnRemove.className = 'btn-small btn-remove';
+        btnRemove.className = 'btn-delete';
         btnRemove.textContent = 'x';
         btnRemove.type = 'button';
         btnRemove.addEventListener('click', function(e) {
@@ -891,7 +886,7 @@ function jsBlock(): string {
         actions.appendChild(btnConfig);
         actions.appendChild(btnRemove);
 
-        item.appendChild(orderBtns);
+        item.appendChild(handle);
         item.appendChild(nameEl);
         item.appendChild(actions);
 
@@ -904,16 +899,6 @@ function jsBlock(): string {
         selectedModulesList.appendChild(item);
       })(i);
     }
-  }
-
-  function moveModule(idx, direction) {
-    var newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= state.config.modules.length) return;
-    var tmp = state.config.modules[idx];
-    state.config.modules[idx] = state.config.modules[newIdx];
-    state.config.modules[newIdx] = tmp;
-    markDirty();
-    renderSelectedModules();
   }
 
   // ── Module detail / config ──
@@ -947,7 +932,7 @@ function jsBlock(): string {
       return;
     }
 
-    // ── Assigned Actions (orderable) ──
+    // ── Assigned Actions (drag-to-reorder for checked) ──
     if (state.config.actions.length > 0) {
       var aTitle = document.createElement('div');
       aTitle.className = 'md-sub';
@@ -961,7 +946,6 @@ function jsBlock(): string {
       var checkedNames = [];
       var uncheckedNames = [];
       for (var c = 0; c < assignedActions.length; c++) {
-        // Only include actions that still exist in global actions
         var stillExists = false;
         for (var g = 0; g < state.config.actions.length; g++) {
           if (state.config.actions[g].name === assignedActions[c]) { stillExists = true; break; }
@@ -973,52 +957,70 @@ function jsBlock(): string {
         if (checkedNames.indexOf(aName) === -1) uncheckedNames.push(aName);
       }
 
-      var orderedList = checkedNames.concat(uncheckedNames);
+      // Draggable container for checked actions
+      var dragActionIdx = -1;
+      var checkedContainer = document.createElement('div');
+      checkedContainer.className = 'md-checked-actions';
 
-      for (var ai = 0; ai < orderedList.length; ai++) {
-        (function(actionName, isChecked, checkedIdx) {
+      for (var ci = 0; ci < checkedNames.length; ci++) {
+        (function(actionName, checkedIdx) {
           var row = document.createElement('div');
           row.className = 'md-action-row';
+          row.setAttribute('draggable', 'true');
+          row.dataset.idx = String(checkedIdx);
 
-          // Order buttons (only for checked actions)
-          var orderBtns = document.createElement('div');
-          orderBtns.className = 'order-btns';
+          var handle = document.createElement('span');
+          handle.className = 'drag-handle';
+          handle.textContent = '\\u2807\\u2807';
 
-          if (isChecked) {
-            var btnUp = document.createElement('button');
-            btnUp.className = 'order-btn btn-move-up';
-            btnUp.textContent = '\\u2191';
-            btnUp.type = 'button';
-            btnUp.disabled = checkedIdx === 0;
-            btnUp.addEventListener('click', function(e) {
-              e.stopPropagation();
-              moveModuleAction(modCfg, checkedIdx, -1);
-            });
-
-            var btnDown = document.createElement('button');
-            btnDown.className = 'order-btn btn-move-down';
-            btnDown.textContent = '\\u2193';
-            btnDown.type = 'button';
-            btnDown.disabled = checkedIdx === checkedNames.length - 1;
-            btnDown.addEventListener('click', function(e) {
-              e.stopPropagation();
-              moveModuleAction(modCfg, checkedIdx, 1);
-            });
-
-            orderBtns.appendChild(btnUp);
-            orderBtns.appendChild(btnDown);
-          }
+          row.addEventListener('dragstart', function(e) {
+            dragActionIdx = checkedIdx;
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(checkedIdx));
+            setTimeout(function() { row.classList.add('dragging'); }, 0);
+          });
+          row.addEventListener('dragend', function() {
+            row.classList.remove('dragging');
+            dragActionIdx = -1;
+            clearDragIndicators(checkedContainer);
+          });
+          row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            clearDragIndicators(checkedContainer);
+            if (dragActionIdx === -1 || dragActionIdx === checkedIdx) return;
+            var rect = row.getBoundingClientRect();
+            var midY = rect.top + rect.height / 2;
+            if (e.clientY < midY) {
+              row.classList.add('drag-over-above');
+            } else {
+              row.classList.add('drag-over-below');
+            }
+          });
+          row.addEventListener('dragleave', function() {
+            row.classList.remove('drag-over-above', 'drag-over-below');
+          });
+          row.addEventListener('drop', function(e) {
+            e.preventDefault();
+            clearDragIndicators(checkedContainer);
+            var fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+            if (isNaN(fromIdx) || fromIdx === checkedIdx) return;
+            var rect = row.getBoundingClientRect();
+            var midY = rect.top + rect.height / 2;
+            var toIdx = e.clientY < midY ? checkedIdx : checkedIdx + 1;
+            if (fromIdx < toIdx) toIdx--;
+            if (fromIdx === toIdx) return;
+            var moved = modCfg.actions.splice(fromIdx, 1)[0];
+            modCfg.actions.splice(toIdx, 0, moved);
+            markDirty();
+            renderModuleDetail();
+          });
 
           var cb = document.createElement('input');
           cb.type = 'checkbox';
-          cb.checked = isChecked;
+          cb.checked = true;
           cb.addEventListener('change', function() {
-            if (!modCfg.actions) modCfg.actions = [];
-            if (cb.checked) {
-              if (modCfg.actions.indexOf(actionName) === -1) modCfg.actions.push(actionName);
-            } else {
-              modCfg.actions = modCfg.actions.filter(function(x) { return x !== actionName; });
-            }
+            modCfg.actions = modCfg.actions.filter(function(x) { return x !== actionName; });
             markDirty();
             renderModuleDetail();
           });
@@ -1026,11 +1028,42 @@ function jsBlock(): string {
           var lbl = document.createElement('span');
           lbl.textContent = actionName;
 
-          row.appendChild(orderBtns);
+          row.appendChild(handle);
+          row.appendChild(cb);
+          row.appendChild(lbl);
+          checkedContainer.appendChild(row);
+        })(checkedNames[ci], ci);
+      }
+      moduleDetailBody.appendChild(checkedContainer);
+
+      // Unchecked actions (not draggable)
+      for (var ui = 0; ui < uncheckedNames.length; ui++) {
+        (function(actionName) {
+          var row = document.createElement('div');
+          row.className = 'md-action-row';
+
+          // Spacer matching drag handle width
+          var spacer = document.createElement('span');
+          spacer.style.cssText = 'width:24px;flex-shrink:0';
+
+          var cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = false;
+          cb.addEventListener('change', function() {
+            if (!modCfg.actions) modCfg.actions = [];
+            if (modCfg.actions.indexOf(actionName) === -1) modCfg.actions.push(actionName);
+            markDirty();
+            renderModuleDetail();
+          });
+
+          var lbl = document.createElement('span');
+          lbl.textContent = actionName;
+
+          row.appendChild(spacer);
           row.appendChild(cb);
           row.appendChild(lbl);
           moduleDetailBody.appendChild(row);
-        })(orderedList[ai], checkedNames.indexOf(orderedList[ai]) !== -1, checkedNames.indexOf(orderedList[ai]));
+        })(uncheckedNames[ui]);
       }
     }
 
@@ -1056,7 +1089,7 @@ function jsBlock(): string {
           var inpV = document.createElement('input');
           inpV.type = 'text'; inpV.value = (modCfg.variables || {})[key]; inpV.placeholder = 'value';
           var btnDel = document.createElement('button');
-          btnDel.className = 'btn-remove'; btnDel.textContent = 'x'; btnDel.type = 'button';
+          btnDel.className = 'btn-delete'; btnDel.textContent = 'x'; btnDel.type = 'button';
 
           inpK.addEventListener('change', function() {
             var nk = inpK.value.trim();
@@ -1093,15 +1126,11 @@ function jsBlock(): string {
     moduleDetailBody.appendChild(btnAddModVar);
   }
 
-  function moveModuleAction(modCfg, idx, direction) {
-    if (!modCfg.actions) return;
-    var newIdx = idx + direction;
-    if (newIdx < 0 || newIdx >= modCfg.actions.length) return;
-    var tmp = modCfg.actions[idx];
-    modCfg.actions[idx] = modCfg.actions[newIdx];
-    modCfg.actions[newIdx] = tmp;
-    markDirty();
-    renderModuleDetail();
+  function clearDragIndicators(container) {
+    var items = container.querySelectorAll('.drag-over-above,.drag-over-below');
+    for (var d = 0; d < items.length; d++) {
+      items[d].classList.remove('drag-over-above', 'drag-over-below');
+    }
   }
 
   // ── Helpers ──
