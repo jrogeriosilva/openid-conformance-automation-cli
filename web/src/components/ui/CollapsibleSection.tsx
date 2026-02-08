@@ -28,6 +28,8 @@ export default function CollapsibleSection({
         {title}
       </button>
       <div
+        // Note: max-h-[1000px] should accommodate most content. If content exceeds this,
+        // consider using a ref-based dynamic height solution.
         className={`overflow-hidden transition-[max-height] duration-300 ${isExpanded ? "max-h-[1000px]" : "max-h-0"}`}
       >
         <div className="px-3 pb-2.5">{children}</div>
