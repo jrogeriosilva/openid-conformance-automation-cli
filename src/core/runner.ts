@@ -1,6 +1,7 @@
 import type { ModuleConfig, PlanConfig } from "../config/schema";
 import type { Logger } from "./logger";
 import type { ExecutionSummary, ModuleResult, RunnerOptions } from "./types";
+import type { RunnerInfo } from "./conformanceApi";
 import { ActionExecutor } from "./actions";
 import { BrowserSession } from "./browserSession";
 import { StateManager } from "./stateManager";
@@ -286,13 +287,21 @@ export class Runner {
    * Prefers direct URL, falls back to first GET method URL.
    */
   private getBrowserUrl(
-    runnerInfo: any,
+    runnerInfo: RunnerInfo,
     moduleName: string,
     correlationId: string
   ): string | null {
     const browser = runnerInfo.browser;
+    if (!browser) {
+      this.logger.log(
+        `No browser information available in runnerInfo`,
+        { correlationId, moduleName }
+      );
+      return null;
+    }
+
     const directUrl = browser.urls[0];
-    const methodUrl = browser.urlsWithMethod.find((entry: any) => {
+    const methodUrl = browser.urlsWithMethod.find((entry) => {
       return entry.method.toUpperCase() === "GET";
     })?.url;
     const targetUrl = directUrl ?? methodUrl;
@@ -301,7 +310,7 @@ export class Runner {
       const urls = browser.urls.length ? browser.urls.join(", ") : "(empty)";
       const urlsWithMethod = browser.urlsWithMethod.length
         ? browser.urlsWithMethod
-            .map((entry: any) => `${entry.method} ${entry.url}`)
+            .map((entry) => `${entry.method} ${entry.url}`)
             .join(", ")
         : "(empty)";
       this.logger.log(

@@ -60,6 +60,16 @@ export const runCli = async (): Promise<void> => {
   const timeout = Number(options.timeout);
   const headless = Boolean(options.headless);
 
+  // Validate numeric parameters
+  if (!Number.isFinite(pollInterval) || pollInterval <= 0) {
+    console.error(`[ERROR]: --poll-interval must be a positive number, got: ${options.pollInterval}`);
+    process.exit(1);
+  }
+  if (!Number.isFinite(timeout) || timeout <= 0) {
+    console.error(`[ERROR]: --timeout must be a positive number, got: ${options.timeout}`);
+    process.exit(1);
+  }
+
   const logger = createLogger();
   logger.info(`Connecting to server: "${baseUrl}"`);
 
