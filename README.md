@@ -23,7 +23,11 @@
 - [CLI Usage](#cli-usage)
   - [Options](#options)
   - [Environment Variables](#environment-variables)
+- [GUI Dashboard](#gui-dashboard)
+  - [Starting the Dashboard](#starting-the-dashboard)
+  - [Dashboard Features](#dashboard-features)
 - [Execution Flow](#execution-flow)
+- [Architecture](#architecture)
 - [Development](#development)
 - [Troubleshooting](#troubleshooting)
 - [Contributing](#contributing)
@@ -33,11 +37,13 @@
 
 | Feature | Description |
 |---------|-------------|
+| **Dual Interface** | Run as a CLI tool for CI/CD pipelines or use the Web GUI Dashboard for visual configuration and monitoring |
 | **Automated Test Execution** | Sequentially execute multiple OpenID conformance test modules |
 | **Dynamic Variable Capture** | Automatically extract variables from API responses, URLs, and redirects |
 | **Template Interpolation** | Use `{{variable}}` placeholders in endpoints, payloads, and headers |
 | **Browser Automation** | Handle OAuth/OIDC flows automatically using Playwright |
-| **Custom Actions** | Execute HTTP requests when tests enter WAITING state |
+| **Custom Actions** | Execute HTTP requests and browser navigations when tests enter WAITING state |
+| **Real-Time Monitoring** | Live SSE-powered dashboard with per-module status cards and streaming logs |
 | **Status Polling** | Configurable polling intervals and timeouts |
 | **Detailed Logging** | Comprehensive execution logs and test result summaries |
 
@@ -290,6 +296,40 @@ Create a `.env` file in the project root (see `env.example`):
 | `CONFORMANCE_SERVER` | No | Custom conformance server URL |
 | `CONFORMANCE_PLAN_ID` | No | Default plan ID (overridden by `--plan-id`) |
 
+## GUI Dashboard
+
+In addition to the CLI, oidc-autopilot provides a modern **Web GUI Dashboard** built with React, Vite, and TailwindCSS. The dashboard offers a visual interface for configuring, launching, and monitoring conformance test runs in real time.
+
+<!-- ![Dashboard Screenshot](docs/dashboard-screenshot.png) -->
+> 📸 *Dashboard screenshot placeholder — replace with an actual capture of the running dashboard.*
+
+### Starting the Dashboard
+
+**Production mode** (builds the React SPA and serves it on a single port):
+
+```bash
+npm run gui                  # default port 3000
+npm run gui -- --port=8080   # custom port
+```
+
+**Development mode** (hot-reload via Vite + Express backend):
+
+```bash
+npm run dev:gui
+```
+
+This starts the Vite dev server on port `5173` (proxying `/api` requests to the Express backend on port `3001`).
+
+### Dashboard Features
+
+| Feature | Description |
+|---------|-------------|
+| **Config Manager** | Discover, view, and select `*.config.json` files from the project directory |
+| **Launch & Stop** | Start and cancel test runs directly from the browser |
+| **Live Log Streaming** | Real-time Server-Sent Events (SSE) feed of execution logs |
+| **Module Status Cards** | Per-module status indicators (PENDING, RUNNING, WAITING, FINISHED, INTERRUPTED, ERROR) |
+| **Environment Defaults** | Pre-fill run parameters from `.env` values |
+
 ## Execution Flow
 
 The CLI follows this execution flow for each test module:
@@ -323,21 +363,58 @@ flowchart TD
 | `FINISHED` | Test completed successfully |
 | `INTERRUPTED` | Test stopped due to error or timeout |
 
+## Architecture
+
+The project is split into a **backend** (TypeScript / Node.js) and a **frontend** (React SPA). Both the CLI and the GUI dashboard share the same core engine.
+
+```mermaid
+graph LR
+    subgraph Backend
+        CLI["CLI (commander)"]
+        GUI["GUI Server (Express + SSE)"]
+        Runner["Runner / State Manager"]
+        Actions["Action Executor"]
+        PW["Playwright Browser"]
+        API["Conformance API Client"]
+    end
+    subgraph Frontend
+        React["React SPA (Vite + TailwindCSS)"]
+    end
+    CLI --> Runner
+    GUI --> Runner
+    React -- "/api/*" --> GUI
+    Runner --> API
+    Runner --> Actions
+    Actions --> PW
+    Actions --> API
+```
+
+> 🏗️ *Architecture diagram placeholder — the Mermaid chart above renders on GitHub. Replace or extend as needed.*
+
 ## Development
 
 ### Available Scripts
 
 ```bash
-# Development mode with hot reload
+# CLI — development mode with hot reload
 npm run dev -- --config ./config.json --plan-id <ID> --token <TOKEN>
 
-# Build for production
+# GUI — production (build + serve)
+npm run gui
+
+# GUI — development (Vite hot reload + Express backend)
+npm run dev:gui
+
+# Build backend only
 npm run build
+
+# Build backend + frontend
+npm run build:all
 
 # Run tests
 npm test
 
-# Start built application
+# Start built CLI application
 npm start -- --config ./config.json --plan-id <ID>
 ```
 
@@ -345,23 +422,36 @@ npm start -- --config ./config.json --plan-id <ID>
 
 ```
 src/
-├── index.ts              # Entry point
-├── cli.ts                # CLI argument parsing
+├── index.ts              # CLI entry point
+├── cli.ts                # CLI argument parsing (commander)
+├── guiEntry.ts           # GUI dashboard entry point
 ├── config/
 │   ├── loadConfig.ts     # Configuration loader
 │   └── schema.ts         # Zod validation schemas
 ├── core/
 │   ├── runner.ts         # Main execution orchestrator
-│   ├── runnerHelpers.ts  # State polling & action handling
+│   ├── stateManager.ts   # Status polling & state transitions
 │   ├── conformanceApi.ts # OpenID Conformance API client
 │   ├── httpClient.ts     # HTTP client with variable capture
-│   ├── actions.ts        # Action execution logic
-│   ├── capture.ts        # Variable extraction
-│   ├── template.ts       # Template interpolation
-│   ├── playwrightRunner.ts # Browser automation
-│   └── logger.ts         # Logging utilities
+│   ├── actions.ts        # Action execution logic (API & Browser)
+│   ├── capture.ts        # Variable extraction from responses/URLs
+│   ├── template.ts       # {{handlebar}} template interpolation
+│   ├── browserSession.ts # Playwright browser lifecycle
+│   ├── playwrightRunner.ts # Browser automation orchestration
+│   └── logger.ts         # Structured logging utilities
+├── gui/
+│   └── server.ts         # Express server with SSE streaming
 └── utils/
     └── sleep.ts          # Async sleep utility
+web/
+├── src/
+│   ├── App.tsx           # React router (Dashboard / Config Manager)
+│   ├── pages/            # DashboardPage, ConfigManagerPage
+│   ├── components/       # Reusable UI components
+│   ├── hooks/            # useDashboard, useSSE, useConfigManager
+│   └── api/              # REST + SSE client helpers
+├── index.html
+└── vite.config.ts
 ```
 
 ## Troubleshooting
