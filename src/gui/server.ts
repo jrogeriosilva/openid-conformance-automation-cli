@@ -112,6 +112,19 @@ export class OidcAutopilotDashboard {
     this.expressApp.listen(this.listenPort, () => {
       console.log(`\n  OIDC Autopilot Dashboard → http://localhost:${this.listenPort}\n`);
     });
+
+    // Gracefully close SSE connections on shutdown
+    const shutdownHandler = () => {
+      console.log('[GUI] Shutting down, closing active SSE connections...');
+      for (const conn of this.activeSseConnections) {
+        conn.end();
+      }
+      this.activeSseConnections.clear();
+      process.exit(0);
+    };
+
+    process.on('SIGTERM', shutdownHandler);
+    process.on('SIGINT', shutdownHandler);
   }
 
   // ── Route registration ──────────────────────────────
@@ -348,10 +361,18 @@ export class OidcAutopilotDashboard {
     const toutSec = typeof b.timeout === "number" ? b.timeout : CONSTANTS.TIMEOUT_SECONDS_DEFAULT;
     const hdls = typeof b.headless === "boolean" ? b.headless : true;
 
-    this.executeConformancePlan(
-      nodePath.resolve(process.cwd(), cfgPath),
-      planId, tok, hostUrl, pollSec, toutSec, hdls,
-    );
+    try {
+      this.executeConformancePlan(
+        nodePath.resolve(process.cwd(), cfgPath),
+        planId, tok, hostUrl, pollSec, toutSec, hdls,
+      );
+    } catch (err) {
+      // If executeConformancePlan throws synchronously, reset the flag
+      this.executionInFlight = false;
+      const msg = err instanceof Error ? err.message : String(err);
+      this.errorDetail = msg;
+      throw err;
+    }
   }
 
   // ── Stop handler ────────────────────────────────────
@@ -375,7 +396,10 @@ export class OidcAutopilotDashboard {
     // Respond immediately, then perform remote cleanup in the background
     rs.json({ stopped: true });
 
-    this.stopRunnersRemotely();
+    // Handle remote cleanup errors to prevent unhandled promise rejections
+    this.stopRunnersRemotely().catch(err => {
+      console.error(`[GUI] Failed to stop runners remotely: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
 
   /**

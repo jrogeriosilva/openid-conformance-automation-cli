@@ -24,8 +24,17 @@ export class BrowserSession {
     waitFor: "networkidle" | "domcontentloaded" | "load" = "networkidle"
   ): Promise<string> {
     try {
+      // Validate URL format before attempting navigation
+      try {
+        new URL(url);
+      } catch (urlErr) {
+        throw new Error(`Invalid URL format: ${url}`);
+      }
+
       await this.initialize();
-      if (!this.page) throw new Error("Browser page not initialized");
+      if (!this.page) {
+        throw new Error("Browser page not initialized after initialization attempt");
+      }
 
       await this.page.goto(url, { waitUntil: waitFor });
       return this.page.url();
