@@ -9,6 +9,7 @@ import { Runner } from "../core/runner";
 import { CONSTANTS } from "../core/constants";
 import { planConfigSchema } from "../config/schema";
 import type { ExecutionSummary } from "../core/types";
+import type { CaptureContext } from "../core/httpClient";
 
 /** Shape of a single log line stored for late-joining SSE clients. */
 interface LogLine {
@@ -78,6 +79,39 @@ function readEnvDefaults(): EnvDefaults {
     token: process.env.CONFORMANCE_TOKEN ?? "",
     serverUrl: process.env.CONFORMANCE_SERVER ?? "https://www.certification.openid.net",
   };
+}
+
+/**
+ * Validates that a resolved file path is safe and within the working directory.
+ * Protects against path traversal attacks including symlink-based escapes.
+ */
+function validateSafePath(filename: string, cwd: string): { valid: boolean; resolvedPath?: string; error?: string } {
+  try {
+    const resolved = nodePath.resolve(cwd, filename);
+    const normalized = nodePath.normalize(resolved);
+    
+    // Check both original and normalized paths
+    if (!normalized.startsWith(cwd) || !resolved.startsWith(cwd)) {
+      return { valid: false, error: "Path traversal not allowed" };
+    }
+
+    // Check if path contains suspicious patterns
+    if (filename.includes("..") || filename.includes("~")) {
+      return { valid: false, error: "Invalid path pattern" };
+    }
+
+    // Resolve symlinks and verify they don't escape the working directory
+    if (fs.existsSync(resolved)) {
+      const realPath = fs.realpathSync(resolved);
+      if (!realPath.startsWith(fs.realpathSync(cwd))) {
+        return { valid: false, error: "Path traversal via symlink not allowed" };
+      }
+    }
+
+    return { valid: true, resolvedPath: resolved };
+  } catch (err) {
+    return { valid: false, error: err instanceof Error ? err.message : "Invalid path" };
+  }
 }
 
 /**
@@ -178,11 +212,14 @@ export class OidcAutopilotDashboard {
 
     this.expressApp.get("/api/config/:filename(*)", (rq, rs) => {
       const cwd = process.cwd();
-      const resolved = nodePath.resolve(cwd, rq.params.filename);
-      if (!resolved.startsWith(cwd)) {
-        rs.status(403).json({ error: "Path traversal not allowed" });
+      const validation = validateSafePath(rq.params.filename, cwd);
+      
+      if (!validation.valid) {
+        rs.status(403).json({ error: validation.error });
         return;
       }
+
+      const resolved = validation.resolvedPath!;
       if (!resolved.endsWith(".config.json")) {
         rs.status(400).json({ error: "File must end with .config.json" });
         return;
@@ -197,11 +234,14 @@ export class OidcAutopilotDashboard {
 
     this.expressApp.put("/api/config/:filename(*)", (rq, rs) => {
       const cwd = process.cwd();
-      const resolved = nodePath.resolve(cwd, rq.params.filename);
-      if (!resolved.startsWith(cwd)) {
-        rs.status(403).json({ error: "Path traversal not allowed" });
+      const validation = validateSafePath(rq.params.filename, cwd);
+      
+      if (!validation.valid) {
+        rs.status(403).json({ error: validation.error });
         return;
       }
+
+      const resolved = validation.resolvedPath!;
       if (!resolved.endsWith(".config.json")) {
         rs.status(400).json({ error: "File must end with .config.json" });
         return;
@@ -223,11 +263,14 @@ export class OidcAutopilotDashboard {
 
     this.expressApp.delete("/api/config/:filename(*)", (rq, rs) => {
       const cwd = process.cwd();
-      const resolved = nodePath.resolve(cwd, rq.params.filename);
-      if (!resolved.startsWith(cwd)) {
-        rs.status(403).json({ error: "Path traversal not allowed" });
+      const validation = validateSafePath(rq.params.filename, cwd);
+      
+      if (!validation.valid) {
+        rs.status(403).json({ error: validation.error });
         return;
       }
+
+      const resolved = validation.resolvedPath!;
       if (!resolved.endsWith(".config.json")) {
         rs.status(400).json({ error: "File must end with .config.json" });
         return;
@@ -343,6 +386,21 @@ export class OidcAutopilotDashboard {
       return;
     }
 
+    const hostUrl = typeof b.serverUrl === "string" ? b.serverUrl : "https://www.certification.openid.net";
+    const pollSec = typeof b.pollInterval === "number" ? b.pollInterval : CONSTANTS.POLL_INTERVAL_SECONDS_DEFAULT;
+    const toutSec = typeof b.timeout === "number" ? b.timeout : CONSTANTS.TIMEOUT_SECONDS_DEFAULT;
+    const hdls = typeof b.headless === "boolean" ? b.headless : true;
+
+    // Validate numeric parameters
+    if (!Number.isFinite(pollSec) || pollSec <= 0) {
+      rs.status(400).json({ error: `pollInterval must be a positive number, got: ${b.pollInterval}` });
+      return;
+    }
+    if (!Number.isFinite(toutSec) || toutSec <= 0) {
+      rs.status(400).json({ error: `timeout must be a positive number, got: ${b.timeout}` });
+      return;
+    }
+
     // Reset for new run
     this.collectedLines = [];
     this.finalOutcome = null;
@@ -355,11 +413,6 @@ export class OidcAutopilotDashboard {
     this.activeRunners = [];
 
     rs.status(202).json({ accepted: true });
-
-    const hostUrl = typeof b.serverUrl === "string" ? b.serverUrl : "https://www.certification.openid.net";
-    const pollSec = typeof b.pollInterval === "number" ? b.pollInterval : CONSTANTS.POLL_INTERVAL_SECONDS_DEFAULT;
-    const toutSec = typeof b.timeout === "number" ? b.timeout : CONSTANTS.TIMEOUT_SECONDS_DEFAULT;
-    const hdls = typeof b.headless === "boolean" ? b.headless : true;
 
     try {
       this.executeConformancePlan(
@@ -518,7 +571,7 @@ export class OidcAutopilotDashboard {
 
       // Wrap registerRunner to track active runner IDs for remote cancellation
       const originalRegister = api.registerRunner.bind(api);
-      api.registerRunner = async (planIdArg: string, testName: string, capture?: any) => {
+      api.registerRunner = async (planIdArg: string, testName: string, capture?: CaptureContext) => {
         const runnerId = await originalRegister(planIdArg, testName, capture);
         this.activeRunners.push({ runnerId, moduleName: testName });
         return runnerId;
