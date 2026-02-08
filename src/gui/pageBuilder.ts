@@ -1,10 +1,7 @@
 /**
  * Generates the single-page HTML dashboard for OIDC Autopilot.
  *
- * Layout:
- *  - Top area: Module cards grid (each test = one card with live status)
- *  - Below cards: Configuration form (sidebar-style, collapsed into a row)
- *  - Bottom: Collapsible log panel
+ * Layout: Header → Configuration & Controls → Module Cards Grid → Log Panel
  *
  * @param envDefaults - Pre-fill values from .env (CONFORMANCE_PLAN_ID, etc.)
  * @param configFiles - List of discovered .config.json files for the dropdown
@@ -35,14 +32,6 @@ ${cssBlock()}
   <div class="topbar-counters" id="topCounters"></div>
 </header>
 
-<!-- Module cards at the TOP -->
-<section class="cards-section" id="cardsSection">
-  <div id="cardsPlaceholder" class="cards-placeholder">
-    <p>Configure and launch a plan to see test modules here.</p>
-  </div>
-  <div id="cardsGrid" class="cards-grid" hidden></div>
-</section>
-
 <!-- Configuration form -->
 <section class="config-section">
   <details class="config-details" open>
@@ -58,14 +47,23 @@ ${cssBlock()}
         <label class="form-field">Plan ID
           <input id="fPlanId" type="text" placeholder="plan-abc-123" value="${escapeAttr(envDefaults.planId)}" required>
         </label>
-        <label class="form-field">Bearer Token
-          <input id="fToken" type="password" placeholder="your-api-token" value="${escapeAttr(envDefaults.token)}" required>
-        </label>
         <label class="form-field">Server URL
           <input id="fServerUrl" type="text" value="${escapeAttr(envDefaults.serverUrl)}">
         </label>
+        <label class="form-field">
+          <span class="form-field-label">Bearer Token</span>
+          <div class="token-input-group">
+            <input id="fToken" type="password" placeholder="your-api-token" value="${escapeAttr(envDefaults.token)}" required>
+            <button id="btnToggleToken" type="button" class="token-btn" title="Show/hide token">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3C4.5 3 1.7 5.1.3 8c1.4 2.9 4.2 5 7.7 5s6.3-2.1 7.7-5C14.3 5.1 11.5 3 8 3zm0 8.5A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>
+            </button>
+            <button id="btnCopyToken" type="button" class="token-btn" title="Copy token">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25zM5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25z"/></svg>
+            </button>
+          </div>
+        </label>
       </div>
-      <div class="form-row">
+      <div class="form-row form-row-bottom">
         <label class="form-field-sm">Poll Interval (s)
           <input id="fPollInterval" type="number" value="5" min="1">
         </label>
@@ -84,6 +82,14 @@ ${cssBlock()}
   </details>
 </section>
 
+<!-- Module cards -->
+<section class="cards-section" id="cardsSection">
+  <div id="cardsPlaceholder" class="cards-placeholder">
+    <p>Configure and launch a plan to see test modules here.</p>
+  </div>
+  <div id="cardsGrid" class="cards-grid" hidden></div>
+</section>
+
 <!-- Collapsible bottom log panel -->
 <div class="log-drawer" id="logDrawer">
   <div class="log-drawer-header" id="logDrawerToggle">
@@ -92,7 +98,11 @@ ${cssBlock()}
       Logs
       <span class="log-count" id="logCount">0</span>
     </span>
-    <button id="btnClear" type="button" class="small-btn">Clear</button>
+    <div class="log-toolbar">
+      <button id="btnCopyLogs" type="button" class="small-btn" title="Copy all logs">Copy All</button>
+      <button id="btnClear" type="button" class="small-btn">Clear</button>
+      <button id="btnExpandLogs" type="button" class="small-btn" title="Toggle fullscreen">&#x26F6;</button>
+    </div>
   </div>
   <div class="log-drawer-body" id="logDrawerBody">
     <div id="logBox" class="log-box"></div>
@@ -139,40 +149,19 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .tc-warning{background:#d29a0033;color:#d29922}
 .tc-total{background:#30363d;color:#c9d1d9}
 
-/* ── Cards section (TOP of page) ── */
-.cards-section{flex:1;overflow-y:auto;padding:1rem 1.5rem}
-.cards-placeholder{display:flex;align-items:center;justify-content:center;min-height:120px;color:#484f58;font-size:.95rem}
-.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;align-content:start}
-
-/* ── Module card ── */
-.mod-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.85rem 1rem;display:flex;flex-direction:column;gap:.4rem;transition:border-color .2s}
-.mod-card.st-RUNNING,.mod-card.st-WAITING{border-color:#1f6feb}
-.mod-card.st-FINISHED.res-PASSED{border-color:#238636}
-.mod-card.st-FINISHED.res-FAILED,.mod-card.st-INTERRUPTED{border-color:#f85149}
-.mod-card.st-FINISHED.res-WARNING{border-color:#d29922}
-.mod-card-header{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
-.mod-card-name{font-size:.85rem;font-weight:600;color:#e6edf3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.mod-card-badge{font-size:.65rem;padding:2px 8px;border-radius:10px;font-weight:600;text-transform:uppercase;white-space:nowrap}
-.mcb-PENDING{background:#30363d;color:#8b949e}
-.mcb-RUNNING{background:#1f6feb33;color:#58a6ff;animation:pulse 1.5s infinite}
-.mcb-WAITING{background:#d29a0033;color:#d29922;animation:pulse 1.5s infinite}
-.mcb-CREATED,.mcb-CONFIGURED{background:#30363d;color:#8b949e}
-.mcb-FINISHED{background:#23883533;color:#3fb950}
-.mcb-INTERRUPTED,.mcb-ERROR{background:#f8514933;color:#f85149}
-.mod-card-result{font-size:.75rem;font-weight:600}
-.mcr-PASSED{color:#3fb950}
-.mcr-FAILED{color:#f85149}
-.mcr-WARNING{color:#d29922}
-.mcr-SKIPPED,.mcr-REVIEW,.mcr-UNKNOWN{color:#8b949e}
-.mod-card-msg{font-size:.72rem;color:#6e7681;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1em}
-
 /* ── Config section ── */
-.config-section{flex-shrink:0;background:#161b22;border-top:1px solid #30363d;padding:0 1.5rem}
+.config-section{flex-shrink:0;background:#161b22;border-bottom:1px solid #30363d;padding:0 1.5rem}
 .config-details{border:none}
 .config-summary{padding:.6rem 0;font-size:.9rem;font-weight:600;color:#c9d1d9;cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem}
 .config-summary::before{content:'\\25B6';font-size:.55rem;transition:transform .2s;display:inline-block}
 .config-details[open] .config-summary::before{transform:rotate(90deg)}
-.config-form{padding-bottom:.75rem}
+.config-form{padding:.5rem 0 .75rem 0}
+.form-row-bottom{align-items:flex-end}
+.form-field-label{display:block;margin-bottom:3px}
+.token-input-group{display:flex;gap:4px;align-items:center}
+.token-input-group input{flex:1}
+.token-btn{background:none;border:1px solid #30363d;border-radius:5px;color:#8b949e;cursor:pointer;padding:5px 7px;display:flex;align-items:center;justify-content:center;transition:color .15s,border-color .15s}
+.token-btn:hover{color:#c9d1d9;border-color:#8b949e}
 .form-row{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:.5rem}
 .form-field{flex:1;min-width:180px;font-size:.82rem;color:#8b949e}
 .form-field input,.form-field select{display:block;width:100%;margin-top:3px;padding:6px 9px;background:#0d1117;border:1px solid #30363d;border-radius:5px;color:#c9d1d9;font-size:.85rem}
@@ -193,6 +182,33 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .small-btn{background:none;border:1px solid #30363d;border-radius:4px;color:#8b949e;font-size:.72rem;padding:2px 8px;cursor:pointer}
 .small-btn:hover{color:#c9d1d9;border-color:#8b949e}
 
+/* ── Cards section ── */
+.cards-section{flex:1 1 auto;min-height:0;overflow-y:auto;padding:1rem 1.5rem}
+.cards-placeholder{display:flex;align-items:center;justify-content:center;min-height:120px;color:#484f58;font-size:.95rem}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem;align-content:start}
+
+/* ── Module card ── */
+.mod-card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:.85rem 1rem;display:flex;flex-direction:column;gap:.4rem;transition:border-color .2s}
+.mod-card.st-RUNNING,.mod-card.st-WAITING{border-color:#1f6feb}
+.mod-card.st-FINISHED.res-PASSED{border-color:#238636}
+.mod-card.st-FINISHED.res-FAILED,.mod-card.st-INTERRUPTED{border-color:#f85149}
+.mod-card.st-FINISHED.res-WARNING{border-color:#d29922}
+.mod-card-header{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.mod-card-name{font-size:.85rem;font-weight:600;color:#e6edf3;word-break:break-word;line-height:1.3;flex:1}
+.mod-card-badge{font-size:.65rem;padding:2px 8px;border-radius:10px;font-weight:600;text-transform:uppercase;white-space:nowrap}
+.mcb-PENDING{background:#30363d;color:#8b949e}
+.mcb-RUNNING{background:#1f6feb33;color:#58a6ff;animation:pulse 1.5s infinite}
+.mcb-WAITING{background:#d29a0033;color:#d29922;animation:pulse 1.5s infinite}
+.mcb-CREATED,.mcb-CONFIGURED{background:#30363d;color:#8b949e}
+.mcb-FINISHED{background:#23883533;color:#3fb950}
+.mcb-INTERRUPTED,.mcb-ERROR{background:#f8514933;color:#f85149}
+.mod-card-result{font-size:.6rem;display:inline-block;padding:1px 6px;border-radius:3px;font-weight:600}
+.mcr-PASSED{color:#3fb950;background:#23883520}
+.mcr-FAILED{color:#f85149;background:#f8514920}
+.mcr-WARNING{color:#d29922;background:#d29a0020}
+.mcr-SKIPPED,.mcr-REVIEW,.mcr-UNKNOWN{color:#8b949e}
+.mod-card-msg{font-size:.72rem;color:#6e7681;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:1em}
+
 /* ── Collapsible log drawer ── */
 .log-drawer{flex-shrink:0;background:#161b22;border-top:1px solid #30363d;display:flex;flex-direction:column;transition:height .25s ease}
 .log-drawer-header{display:flex;align-items:center;justify-content:space-between;padding:.45rem 1rem;cursor:pointer;user-select:none}
@@ -201,7 +217,10 @@ body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#c9
 .log-drawer-chevron.collapsed{transform:rotate(180deg)}
 .log-count{font-size:.7rem;background:#30363d;color:#8b949e;padding:1px 7px;border-radius:8px;font-weight:500}
 .log-drawer-body{overflow:hidden;transition:max-height .25s ease}
+.log-toolbar{display:flex;gap:.4rem;align-items:center}
 .log-drawer-body.collapsed{max-height:0 !important}
+.log-drawer.fullscreen{position:fixed;inset:0;z-index:1000;height:100vh;border-top:none}
+.log-drawer.fullscreen .log-box{height:calc(100vh - 40px)}
 .log-box{
   height:220px;overflow-y:auto;font-family:'SFMono-Regular',Consolas,monospace;
   font-size:.78rem;line-height:1.55;padding:.4rem .7rem;background:#0d1117;border-top:1px solid #21262d}
@@ -230,6 +249,12 @@ function jsBlock(): string {
   var logDrawerBody = document.getElementById('logDrawerBody');
   var logChevron = document.getElementById('logChevron');
   var logCountEl = document.getElementById('logCount');
+  var logDrawer = document.getElementById('logDrawer');
+  var btnCopyLogs = document.getElementById('btnCopyLogs');
+  var btnExpandLogs = document.getElementById('btnExpandLogs');
+  var btnToggleToken = document.getElementById('btnToggleToken');
+  var btnCopyToken = document.getElementById('btnCopyToken');
+  var fToken = document.getElementById('fToken');
   var logLineCount = 0;
 
   // ── Log drawer collapse toggle ──
@@ -250,6 +275,42 @@ function jsBlock(): string {
     logBox.innerHTML = '';
     logLineCount = 0;
     logCountEl.textContent = '0';
+  });
+
+  // ── Token show/hide toggle ──
+  btnToggleToken.addEventListener('click', function(e) {
+    e.preventDefault();
+    fToken.type = fToken.type === 'password' ? 'text' : 'password';
+  });
+
+  // ── Token copy ──
+  btnCopyToken.addEventListener('click', function(e) {
+    e.preventDefault();
+    navigator.clipboard.writeText(fToken.value);
+  });
+
+  // ── Copy all logs ──
+  btnCopyLogs.addEventListener('click', function(e) {
+    e.stopPropagation();
+    var lines = logBox.querySelectorAll('.log-line');
+    var text = [];
+    for (var i = 0; i < lines.length; i++) text.push(lines[i].textContent);
+    navigator.clipboard.writeText(text.join('\\n')).then(function() {
+      var orig = btnCopyLogs.textContent;
+      btnCopyLogs.textContent = 'Copied!';
+      setTimeout(function() { btnCopyLogs.textContent = orig; }, 1500);
+    });
+  });
+
+  // ── Expand/fullscreen logs ──
+  btnExpandLogs.addEventListener('click', function(e) {
+    e.stopPropagation();
+    logDrawer.classList.toggle('fullscreen');
+    btnExpandLogs.innerHTML = logDrawer.classList.contains('fullscreen') ? '&#x2716;' : '&#x26F6;';
+    if (logDrawer.classList.contains('fullscreen')) {
+      logDrawerBody.classList.remove('collapsed');
+      logChevron.classList.remove('collapsed');
+    }
   });
 
   function appendLog(severity, text) {
@@ -302,15 +363,16 @@ function jsBlock(): string {
 
     header.appendChild(nameEl);
     header.appendChild(badgeEl);
-    card.appendChild(header);
 
     if (mod.result) {
-      var resultEl = document.createElement('div');
+      var resultEl = document.createElement('span');
       resultEl.className = 'mod-card-result mcr-' + mod.result;
       resultEl.textContent = mod.result;
       resultEl.id = 'cresult-' + mod.name;
-      card.appendChild(resultEl);
+      header.appendChild(resultEl);
     }
+
+    card.appendChild(header);
 
     var msgEl = document.createElement('div');
     msgEl.className = 'mod-card-msg';
@@ -336,10 +398,10 @@ function jsBlock(): string {
     var resultEl = document.getElementById('cresult-' + mod.name);
     if (mod.result) {
       if (!resultEl) {
-        resultEl = document.createElement('div');
+        resultEl = document.createElement('span');
         resultEl.id = 'cresult-' + mod.name;
-        var msgEl = document.getElementById('cmsg-' + mod.name);
-        card.insertBefore(resultEl, msgEl);
+        var headerEl = card.querySelector('.mod-card-header');
+        if (headerEl) headerEl.appendChild(resultEl);
       }
       resultEl.className = 'mod-card-result mcr-' + mod.result;
       resultEl.textContent = mod.result;
@@ -437,7 +499,7 @@ function jsBlock(): string {
     topCounters.innerHTML = '';
     cardsGrid.innerHTML = '';
     cardsGrid.hidden = true;
-    cardsPlaceholder.hidden = false;
+    cardsPlaceholder.hidden = true;
 
     var payload = {
       configPath: document.getElementById('fConfigPath').value,
@@ -466,6 +528,11 @@ function jsBlock(): string {
       setBadge('errored', 'Error');
       setRunning(false);
     });
+  });
+
+  // ── Hide placeholder when config file is selected ──
+  document.getElementById('fConfigPath').addEventListener('change', function() {
+    if (this.value) cardsPlaceholder.hidden = true;
   });
 
   // ── Restore state on load ──

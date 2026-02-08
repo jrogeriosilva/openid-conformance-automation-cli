@@ -70,11 +70,11 @@ describe("pageBuilder", () => {
     expect(html).toContain("/api/stop");
   });
 
-  it("should place cards section before config section in the HTML", () => {
+  it("should place config section before cards section in the HTML", () => {
     const html = buildPage(defaultEnv, defaultConfigs);
 
-    const cardsPos = html.indexOf('id="cardsSection"');
     const configPos = html.indexOf('class="config-section"');
-    expect(cardsPos).toBeLessThan(configPos);
+    const cardsPos = html.indexOf('id="cardsSection"');
+    expect(configPos).toBeLessThan(cardsPos);
   });
 });
