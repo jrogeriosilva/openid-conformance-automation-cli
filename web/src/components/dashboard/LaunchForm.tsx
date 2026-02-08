@@ -19,7 +19,7 @@ export default function LaunchForm({ isRunning, onLaunched, onError }: Props) {
   const [timeout, setTimeout_] = useState(240);
   const [headless, setHeadless] = useState(true);
   const [stopping, setStopping] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     fetchConfigs()
@@ -68,13 +68,13 @@ export default function LaunchForm({ isRunning, onLaunched, onError }: Props) {
     <section className="shrink-0 bg-bg-secondary border-b border-border px-6">
       <div
         className="py-2.5 text-sm font-semibold text-text-primary cursor-pointer select-none flex items-center gap-1.5"
-        onClick={() => setCollapsed(!collapsed)}
+        onClick={() => setIsCollapsed(!isCollapsed)}
       >
-        <span className={`text-[0.55rem] inline-block transition-transform ${collapsed ? '' : 'rotate-90'}`}>&#9654;</span>
+        <span className={`text-[0.55rem] inline-block transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>&#9654;</span>
         Plan Configuration
       </div>
       <div
-        className={`overflow-hidden transition-[max-height] duration-300 ${collapsed ? "max-h-0" : "max-h-[1000px]"}`}
+        className={`overflow-hidden transition-[max-height] duration-300 ${isCollapsed ? "max-h-0" : "max-h-[1000px]"}`}
       >
         <form onSubmit={handleSubmit} autoComplete="off" className="pb-3">
           <div className="flex gap-3 flex-wrap mb-2">
